@@ -1,0 +1,52 @@
+import { BrowserWindow, shell } from 'electron';
+import { frontendDevUrl, isDev, preloadPath, rendererIndexPath } from './env';
+
+const BACKGROUND_COLOR = '#FAF7F2';
+
+export function createMainWindow(): BrowserWindow {
+  const window = new BrowserWindow({
+    width: 1280,
+    height: 820,
+    minWidth: 1024,
+    minHeight: 680,
+    show: false,
+    title: 'Mudanzify',
+    backgroundColor: BACKGROUND_COLOR,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: preloadPath,
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+      spellcheck: false,
+    },
+  });
+
+  // Avoid a white flash: only show once the first frame is painted.
+  window.once('ready-to-show', () => window.show());
+
+  hardenNavigation(window);
+
+  if (isDev) {
+    void window.loadURL(frontendDevUrl);
+    window.webContents.openDevTools({ mode: 'detach' });
+  } else {
+    void window.loadFile(rendererIndexPath);
+  }
+
+  return window;
+}
+
+/** The renderer may never navigate away or open new Electron windows. */
+function hardenNavigation(window: BrowserWindow): void {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  window.webContents.on('will-navigate', (event, url) => {
+    const allowed = isDev && url.startsWith(frontendDevUrl);
+    if (!allowed) event.preventDefault();
+  });
+}
