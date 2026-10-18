@@ -10,6 +10,7 @@ files:
   - dist/**/*
   - renderer/**/*
   - package.json
+  - build/icon.png
   - "!**/*.map"
 
 asar: true

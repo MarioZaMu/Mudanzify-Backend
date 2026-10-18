@@ -1,5 +1,5 @@
 import { BrowserWindow, shell } from 'electron';
-import { frontendDevUrl, isDev, preloadPath, rendererIndexPath } from './env';
+import { appIconPath, frontendDevUrl, isDev, preloadPath, rendererIndexPath } from './env';
 import { getWindowBackground } from './theme';
 
 export function createMainWindow(): BrowserWindow {
@@ -10,6 +10,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 680,
     show: false,
     title: 'Mudanzify',
+    icon: appIconPath,
     backgroundColor: getWindowBackground(),
     autoHideMenuBar: true,
     webPreferences: {

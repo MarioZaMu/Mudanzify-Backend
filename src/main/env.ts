@@ -15,3 +15,5 @@ export const frontendDevUrl = process.env.FRONTEND_DEV_URL ?? 'http://localhost:
 export const rendererIndexPath = path.join(app.getAppPath(), 'renderer', 'index.html');
 
 export const preloadPath = path.join(__dirname, '..', 'preload', 'index.js');
+
+export const appIconPath = path.join(app.getAppPath(), 'build', 'icon.png');
