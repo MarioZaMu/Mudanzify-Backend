@@ -1,0 +1,31 @@
+appId: com.mariozamu.mudanzify
+productName: Mudanzify
+copyright: Copyright © 2026 MarioZaMu
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - renderer/**/*
+  - package.json
+  - "!**/*.map"
+
+asar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Mudanzify
+  language: "3082"
+  installerLanguages: [es_ES]
