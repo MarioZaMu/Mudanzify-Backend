@@ -1,7 +1,6 @@
 import { BrowserWindow, shell } from 'electron';
 import { frontendDevUrl, isDev, preloadPath, rendererIndexPath } from './env';
-
-const BACKGROUND_COLOR = '#FAF7F2';
+import { getWindowBackground } from './theme';
 
 export function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -11,7 +10,7 @@ export function createMainWindow(): BrowserWindow {
     minHeight: 680,
     show: false,
     title: 'Mudanzify',
-    backgroundColor: BACKGROUND_COLOR,
+    backgroundColor: getWindowBackground(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: preloadPath,
