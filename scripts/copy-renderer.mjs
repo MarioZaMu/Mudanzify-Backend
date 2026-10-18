@@ -5,6 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const envFile = path.join(root, '.env');
+if (existsSync(envFile)) process.loadEnvFile(envFile);
 const frontendDir = path.resolve(root, process.env.FRONTEND_DIR ?? '../mudanzify-frontend');
 const source = path.join(frontendDir, 'dist');
 const target = path.join(root, 'renderer');
