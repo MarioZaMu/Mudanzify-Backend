@@ -1,0 +1,9 @@
+{
+  "name": "mudanzify-backend",
+  "version": "0.1.0",
+  "description": "Mudanzify desktop backend: Electron main process, preload bridge and IPC.",
+  "author": "MarioZaMu",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/main/index.js"
+}
