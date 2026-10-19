@@ -43,6 +43,16 @@ const bridge: MudanzifyBridge = {
       return () => ipcRenderer.removeListener(IpcEvent.ScanProgress, handler);
     },
   },
+  ai: {
+    getStatus: () => ipcRenderer.invoke(IpcChannel.AiGetStatus),
+  },
+  interview: {
+    start: (id) => ipcRenderer.invoke(IpcChannel.InterviewStart, id),
+    answer: (id, answer) => ipcRenderer.invoke(IpcChannel.InterviewAnswer, id, answer),
+    review: (id, suggestionId, decision) => ipcRenderer.invoke(IpcChannel.InterviewReview, id, suggestionId, decision),
+    finish: (id) => ipcRenderer.invoke(IpcChannel.InterviewFinish, id),
+    reset: (id) => ipcRenderer.invoke(IpcChannel.InterviewReset, id),
+  },
 };
 
 contextBridge.exposeInMainWorld(BRIDGE_KEY, bridge);

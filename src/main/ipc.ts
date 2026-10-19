@@ -4,6 +4,7 @@ import { completeOnboarding, getOnboardingState, resetOnboarding } from './onboa
 import { assertTrustedSender } from './security';
 import { isThemePreference, isUserRole } from './settings';
 import { getThemeState, setThemePreference } from './theme';
+import { registerInterviewHandlers } from './interview/ipc';
 import { registerTransferHandlers } from './transfers/ipc';
 
 function getAppInfo(): AppInfo {
@@ -55,4 +56,5 @@ export function registerIpcHandlers(): void {
   });
 
   registerTransferHandlers();
+  registerInterviewHandlers();
 }
