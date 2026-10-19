@@ -16,7 +16,7 @@ mudanzify-backend/            mudanzify-frontend/
 - `src/main`: ventana, ciclo de vida de la app y manejadores IPC. Aquí irán el acceso al sistema de archivos y las llamadas a la IA.
 - `src/preload`: expone solo funciones explícitas al renderer mediante `contextBridge`.
 - `src/shared/contract.ts`: fuente única de verdad de los canales y tipos IPC.
-- Preferencias del usuario (por ahora, el tema claro/oscuro/sistema) en `settings.json` dentro de la carpeta de datos de la app (`%APPDATA%/mudanzify-backend`).
+- Preferencias del usuario (tema claro/oscuro/sistema, presentación vista y rol emisor/receptor) en `settings.json` dentro de la carpeta de datos de la app (`%APPDATA%/mudanzify-backend`).
 
 Seguridad: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, navegación bloqueada,
 validación del origen de cada llamada IPC y CSP estricta en producción.
