@@ -3,6 +3,7 @@ import {
   BRIDGE_KEY,
   IpcChannel,
   IpcEvent,
+  type AnalysisProgress,
   type MudanzifyBridge,
   type ScanProgress,
   type ThemeState,
@@ -52,6 +53,21 @@ const bridge: MudanzifyBridge = {
     review: (id, suggestionId, decision) => ipcRenderer.invoke(IpcChannel.InterviewReview, id, suggestionId, decision),
     finish: (id) => ipcRenderer.invoke(IpcChannel.InterviewFinish, id),
     reset: (id) => ipcRenderer.invoke(IpcChannel.InterviewReset, id),
+  },
+  analysis: {
+    run: (id) => ipcRenderer.invoke(IpcChannel.AnalysisRun, id),
+    decideFinding: (id, findingId, decision) =>
+      ipcRenderer.invoke(IpcChannel.AnalysisDecideFinding, id, findingId, decision),
+    reviewMapping: (id, mappingId, decision) =>
+      ipcRenderer.invoke(IpcChannel.AnalysisReviewMapping, id, mappingId, decision),
+    setPriority: (id, decision) => ipcRenderer.invoke(IpcChannel.AnalysisSetPriority, id, decision),
+    confirm: (id) => ipcRenderer.invoke(IpcChannel.AnalysisConfirm, id),
+    reset: (id) => ipcRenderer.invoke(IpcChannel.AnalysisReset, id),
+    onProgress: (listener) => {
+      const handler = (_event: IpcRendererEvent, progress: AnalysisProgress) => listener(progress);
+      ipcRenderer.on(IpcEvent.AnalysisProgress, handler);
+      return () => ipcRenderer.removeListener(IpcEvent.AnalysisProgress, handler);
+    },
   },
 };
 
