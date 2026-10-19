@@ -4,6 +4,7 @@ import {
   IpcChannel,
   IpcEvent,
   type MudanzifyBridge,
+  type ScanProgress,
   type ThemeState,
 } from '../shared/contract';
 
@@ -25,6 +26,22 @@ const bridge: MudanzifyBridge = {
     get: () => ipcRenderer.invoke(IpcChannel.OnboardingGet),
     complete: (role) => ipcRenderer.invoke(IpcChannel.OnboardingComplete, role),
     reset: () => ipcRenderer.invoke(IpcChannel.OnboardingReset),
+  },
+  transfers: {
+    list: () => ipcRenderer.invoke(IpcChannel.TransfersList),
+    create: () => ipcRenderer.invoke(IpcChannel.TransfersCreate),
+    get: (id) => ipcRenderer.invoke(IpcChannel.TransfersGet, id),
+    rename: (id, name) => ipcRenderer.invoke(IpcChannel.TransfersRename, id, name),
+    remove: (id) => ipcRenderer.invoke(IpcChannel.TransfersRemove, id),
+    addSources: (id, kind) => ipcRenderer.invoke(IpcChannel.TransfersAddSources, id, kind),
+    removeSource: (id, sourceId) => ipcRenderer.invoke(IpcChannel.TransfersRemoveSource, id, sourceId),
+    pickDestination: (id) => ipcRenderer.invoke(IpcChannel.TransfersPickDestination, id),
+    scan: (id) => ipcRenderer.invoke(IpcChannel.TransfersScan, id),
+    onScanProgress: (listener) => {
+      const handler = (_event: IpcRendererEvent, progress: ScanProgress) => listener(progress);
+      ipcRenderer.on(IpcEvent.ScanProgress, handler);
+      return () => ipcRenderer.removeListener(IpcEvent.ScanProgress, handler);
+    },
   },
 };
 
