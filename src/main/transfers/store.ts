@@ -31,12 +31,20 @@ export async function saveTransfer(draft: TransferDraft): Promise<TransferDraft>
   return next;
 }
 
+/** Transfers whose copy is running in this process right now. */
+export const activeExecutions = new Set<string>();
+
 export async function loadTransfer(id: string): Promise<TransferDraft> {
   assertTransferId(id);
   const raw = await readFile(fileFor(id), 'utf8');
   const draft = JSON.parse(raw) as TransferDraft;
   // Drafts saved before phases 5 to 7 lack the newer fields.
-  return { ...draft, interview: draft.interview ?? null, analysis: draft.analysis ?? null, execution: draft.execution ?? null };
+  let execution = draft.execution ?? null;
+  // A run saved as "running" that is not running now was cut short (the app closed).
+  if (execution?.status === 'running' && !activeExecutions.has(id)) {
+    execution = { ...execution, status: 'cancelled' };
+  }
+  return { ...draft, interview: draft.interview ?? null, analysis: draft.analysis ?? null, execution };
 }
 
 export async function deleteTransfer(id: string): Promise<void> {
