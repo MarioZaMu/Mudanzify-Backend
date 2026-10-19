@@ -1,11 +1,9 @@
-import { ApiError, FunctionCallingConfigMode, GoogleGenAI, type FunctionDeclaration } from '@google/genai';
+import type { FunctionDeclaration } from '@google/genai';
 import { CRITERION_TOPICS, type InterviewTurn } from '../../shared/contract';
 import type { InventoryContext } from './context';
+import { createFunctionCaller } from './geminiClient';
 import { sanitizeQuestion, sanitizeSummary } from './sanitize';
 import { MAX_QUESTIONS, MIN_QUESTIONS, type Interviewer, type InterviewStep } from './types';
-
-/** Error codes the renderer can recognize inside the IPC error message. */
-export const AI_ERROR = { rateLimit: 'AI_RATE_LIMIT', auth: 'AI_AUTH' } as const;
 
 const SYSTEM_PROMPT = `You are the interviewer inside Mudanzify, a desktop app that helps a person (the "sender")
 move data from an origin to a destination without losing, duplicating or disordering anything.
@@ -81,19 +79,8 @@ function transcript(turns: InterviewTurn[]) {
     }));
 }
 
-/** Gives the renderer a code for the two errors the user can fix themselves. */
-function explain(error: unknown): Error {
-  if (error instanceof ApiError) {
-    if (error.status === 429) return new Error(AI_ERROR.rateLimit);
-    if (error.status === 400 || error.status === 401 || error.status === 403) {
-      if (/api key|API_KEY|permission|unauthenticated/i.test(error.message)) return new Error(AI_ERROR.auth);
-    }
-  }
-  return error instanceof Error ? error : new Error('AI request failed');
-}
-
 export function createGeminiInterviewer(apiKey: string, model: string): Interviewer {
-  const client = new GoogleGenAI({ apiKey, httpOptions: { timeout: 45_000 } });
+  const call = createFunctionCaller(apiKey, model);
 
   return {
     async nextStep(context: InventoryContext, turns: InterviewTurn[]): Promise<InterviewStep> {
@@ -106,33 +93,13 @@ export function createGeminiInterviewer(apiKey: string, model: string): Intervie
             ? ['ask_question']
             : ['ask_question', 'finish_interview'];
 
-      let response;
-      try {
-        response = await client.models.generateContent({
-          model,
-          contents: JSON.stringify({
-            inventorySummary: context,
-            questionsAnswered: answered,
-            conversation: transcript(turns),
-          }),
-          config: {
-            systemInstruction: SYSTEM_PROMPT,
-            tools: [{ functionDeclarations: FUNCTIONS }],
-            toolConfig: {
-              functionCallingConfig: { mode: FunctionCallingConfigMode.ANY, allowedFunctionNames: allowed },
-            },
-          },
-        });
-      } catch (error) {
-        throw explain(error);
-      }
-
-      const call = response.functionCalls?.[0];
-      if (!call?.name || typeof call.args !== 'object' || call.args === null || !allowed.includes(call.name)) {
-        throw new Error('The AI did not return a structured answer');
-      }
-      const args = call.args as Record<string, unknown>;
-      return call.name === 'finish_interview' ? sanitizeSummary(args) : sanitizeQuestion(args);
+      const { name, args } = await call({
+        system: SYSTEM_PROMPT,
+        input: { inventorySummary: context, questionsAnswered: answered, conversation: transcript(turns) },
+        functions: FUNCTIONS,
+        allowed,
+      });
+      return name === 'finish_interview' ? sanitizeSummary(args) : sanitizeQuestion(args);
     },
   };
 }
