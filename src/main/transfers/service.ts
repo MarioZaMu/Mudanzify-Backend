@@ -23,6 +23,7 @@ export async function createTransfer(): Promise<TransferDraft> {
     inventory: null,
     destination: null,
     interview: null,
+    analysis: null,
   });
 }
 
@@ -34,12 +35,12 @@ export async function renameTransfer(id: string, name: unknown): Promise<Transfe
 
 export { deleteTransfer as removeTransfer };
 
-/** Any change to the sources makes the previous inventory (and the interview based on it) stale. */
+/** Any change to the sources makes the previous inventory (and the interview and analysis based on it) stale. */
 async function withSources(draft: TransferDraft, sources: TransferSource[]): Promise<TransferDraft> {
   const destination = draft.destination
     ? await inspectDestination(draft.destination.path, sources, null)
     : null;
-  return saveTransfer({ ...draft, sources, inventory: null, destination, interview: null });
+  return saveTransfer({ ...draft, sources, inventory: null, destination, interview: null, analysis: null });
 }
 
 export async function addSources(window: BrowserWindow, id: string, kind: SourceKind): Promise<TransferDraft> {
@@ -105,8 +106,8 @@ export function scanTransfer(id: string, onProgress: (progress: ScanProgress) =>
     const destination = draft.destination
       ? await inspectDestination(draft.destination.path, draft.sources, inventory.totals.bytes)
       : null;
-    // A new inventory means the interview answered questions about old data.
-    return saveTransfer({ ...draft, inventory, destination, interview: null });
+    // A new inventory means the interview and analysis describe old data.
+    return saveTransfer({ ...draft, inventory, destination, interview: null, analysis: null });
   })().finally(() => runningScans.delete(id));
 
   runningScans.set(id, job);

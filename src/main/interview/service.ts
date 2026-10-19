@@ -57,7 +57,8 @@ export function startInterview(id: string): Promise<TransferDraft> {
     const { mode } = getAiStatus();
     const empty: TransferInterview = { mode, status: 'asking', turns: [], summary: null, suggestions: [] };
     const step = await interviewerFor(mode).nextStep(context, []);
-    return saveTransfer({ ...draft, interview: applyStep(empty, step) });
+    // New criteria make any previous analysis stale.
+    return saveTransfer({ ...draft, interview: applyStep(empty, step), analysis: null });
   });
 }
 
@@ -142,5 +143,5 @@ export async function finishInterview(id: string): Promise<TransferDraft> {
 
 export async function resetInterview(id: string): Promise<TransferDraft> {
   const draft = await loadTransfer(id);
-  return saveTransfer({ ...draft, interview: null });
+  return saveTransfer({ ...draft, interview: null, analysis: null });
 }

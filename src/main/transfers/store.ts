@@ -35,8 +35,8 @@ export async function loadTransfer(id: string): Promise<TransferDraft> {
   assertTransferId(id);
   const raw = await readFile(fileFor(id), 'utf8');
   const draft = JSON.parse(raw) as TransferDraft;
-  // Drafts saved before phase 5 have no interview field.
-  return { ...draft, interview: draft.interview ?? null };
+  // Drafts saved before phases 5 and 6 have no interview or analysis field.
+  return { ...draft, interview: draft.interview ?? null, analysis: draft.analysis ?? null };
 }
 
 export async function deleteTransfer(id: string): Promise<void> {
