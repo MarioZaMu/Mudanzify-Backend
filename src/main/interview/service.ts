@@ -5,7 +5,7 @@ import type {
   TransferDraft,
   TransferInterview,
 } from '../../shared/contract';
-import { createClaudeInterviewer } from '../ai/claude';
+import { createGeminiInterviewer } from '../ai/gemini';
 import { getAiStatus, getApiKey, getModel } from '../ai/config';
 import { buildInventoryContext } from '../ai/context';
 import { createDemoInterviewer } from '../ai/demo';
@@ -17,7 +17,7 @@ const MAX_CHOICES = 10;
 
 function interviewerFor(mode: TransferInterview['mode']): Interviewer {
   const apiKey = getApiKey();
-  return mode === 'ai' && apiKey ? createClaudeInterviewer(apiKey, getModel()) : createDemoInterviewer();
+  return mode === 'ai' && apiKey ? createGeminiInterviewer(apiKey, getModel()) : createDemoInterviewer();
 }
 
 /** Applies what the interviewer decided: a new open question or the review stage. */
