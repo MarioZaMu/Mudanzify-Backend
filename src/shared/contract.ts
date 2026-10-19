@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 3;
+export const CONTRACT_VERSION = 4;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -19,6 +19,15 @@ export const IpcChannel = {
   OnboardingGet: 'onboarding:get',
   OnboardingComplete: 'onboarding:complete',
   OnboardingReset: 'onboarding:reset',
+  TransfersList: 'transfers:list',
+  TransfersCreate: 'transfers:create',
+  TransfersGet: 'transfers:get',
+  TransfersRename: 'transfers:rename',
+  TransfersRemove: 'transfers:remove',
+  TransfersAddSources: 'transfers:add-sources',
+  TransfersRemoveSource: 'transfers:remove-source',
+  TransfersPickDestination: 'transfers:pick-destination',
+  TransfersScan: 'transfers:scan',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -26,6 +35,7 @@ export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
 /** Channels the backend uses to push events to the renderer. */
 export const IpcEvent = {
   ThemeChanged: 'theme:changed',
+  ScanProgress: 'transfers:scan-progress',
 } as const;
 
 export interface AppInfo {
@@ -59,6 +69,140 @@ export interface OnboardingState {
   role: UserRole | null;
 }
 
+/* ------------------------------------------------------------------ */
+/* Transfers: origin, inventory and destination (phase 4)              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Paths never travel from the renderer to the backend: they only come from
+ * native dialogs opened by the main process. The renderer works with ids.
+ */
+export type SourceKind = 'folder' | 'file';
+
+export interface TransferSource {
+  id: string;
+  kind: SourceKind;
+  path: string;
+  name: string;
+}
+
+export const FILE_CATEGORIES = [
+  'documents',
+  'spreadsheets',
+  'images',
+  'media',
+  'archives',
+  'code',
+  'other',
+] as const;
+export type FileCategory = (typeof FILE_CATEGORIES)[number];
+
+/** Signals found while scanning; the AI analysis (phase 6) goes much deeper. */
+export type FileFlag = 'hidden' | 'temporary' | 'empty';
+
+export type RiskLevel = 'safe' | 'warn' | 'danger';
+
+export interface InventoryFile {
+  id: string;
+  sourceId: string;
+  /** Path relative to its source, using "/" separators. */
+  relativePath: string;
+  name: string;
+  extension: string;
+  size: number;
+  /** ISO date. */
+  modifiedAt: string;
+  category: FileCategory;
+  flags: FileFlag[];
+}
+
+export interface ColumnProfile {
+  name: string;
+  filled: number;
+  empty: number;
+}
+
+export interface SheetProfile {
+  name: string;
+  rowCount: number;
+  /** Rows actually inspected to compute filled/empty counts. */
+  sampledRows: number;
+  columns: ColumnProfile[];
+  sampleRows: string[][];
+}
+
+export interface TableProfile {
+  fileId: string;
+  fileName: string;
+  format: 'csv' | 'xlsx';
+  sheets: SheetProfile[];
+}
+
+/** A group of files of the same category: one "box" in the moving metaphor. */
+export interface InventoryBox {
+  id: FileCategory;
+  fileCount: number;
+  bytes: number;
+  flaggedCount: number;
+  risk: RiskLevel;
+}
+
+export type InventoryIssueKind = 'unreadable' | 'table-too-large' | 'table-unreadable' | 'limit-reached';
+
+export interface InventoryIssue {
+  kind: InventoryIssueKind;
+  path: string;
+}
+
+export interface Inventory {
+  scannedAt: string;
+  totals: { files: number; folders: number; bytes: number; tables: number };
+  boxes: InventoryBox[];
+  files: InventoryFile[];
+  tables: TableProfile[];
+  issues: InventoryIssue[];
+  /** True when the file limit was reached and not everything was listed. */
+  truncated: boolean;
+}
+
+export type DestinationConflict = 'inside-source' | 'not-writable' | 'not-enough-space';
+
+export interface TransferDestination {
+  path: string;
+  name: string;
+  writable: boolean;
+  freeBytes: number | null;
+  conflicts: DestinationConflict[];
+}
+
+export interface TransferDraft {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  sources: TransferSource[];
+  inventory: Inventory | null;
+  destination: TransferDestination | null;
+}
+
+export interface TransferSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+  sourceCount: number;
+  fileCount: number | null;
+  totalBytes: number | null;
+  hasDestination: boolean;
+}
+
+export interface ScanProgress {
+  transferId: string;
+  phase: 'walking' | 'tables' | 'done';
+  filesSeen: number;
+  bytesSeen: number;
+  currentPath: string;
+}
+
 /** API available to the renderer as `window.mudanzify`. */
 export interface MudanzifyBridge {
   app: {
@@ -76,5 +220,21 @@ export interface MudanzifyBridge {
     complete(role: UserRole): Promise<OnboardingState>;
     /** Shows the presentation again on next load (keeps nothing else). */
     reset(): Promise<OnboardingState>;
+  };
+  transfers: {
+    list(): Promise<TransferSummary[]>;
+    create(): Promise<TransferDraft>;
+    get(id: string): Promise<TransferDraft>;
+    rename(id: string, name: string): Promise<TransferDraft>;
+    /** Deletes only Mudanzify's record of the transfer, never the user's files. */
+    remove(id: string): Promise<void>;
+    /** Opens a native dialog; resolves with the draft unchanged if cancelled. */
+    addSources(id: string, kind: SourceKind): Promise<TransferDraft>;
+    removeSource(id: string, sourceId: string): Promise<TransferDraft>;
+    /** Opens a native folder dialog for the destination. */
+    pickDestination(id: string): Promise<TransferDraft>;
+    /** Reads the sources (read-only) and builds the inventory. */
+    scan(id: string): Promise<TransferDraft>;
+    onScanProgress(listener: (progress: ScanProgress) => void): () => void;
   };
 }
