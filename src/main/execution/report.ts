@@ -81,7 +81,13 @@ function buildHtml(draft: TransferDraft, execution: TransferExecution): string {
   const files = new Map(draft.inventory?.files.map((file) => [file.id, file]) ?? []);
   const criteria = (draft.interview?.suggestions ?? []).filter((s) => s.status === 'accepted' || s.status === 'edited');
   const { totals, plan } = execution;
-  const notes = (draft.analysis?.findings ?? []).filter((f) => f.kind === 'empty-cells' && f.choice === 'flag');
+  const written = new Set(
+    execution.results.filter((r) => r.status === 'copied' || r.status === 'transformed').map((r) => r.fileId),
+  );
+  // Gaps to review, only in tables that actually reached the destination.
+  const notes = (draft.analysis?.findings ?? []).filter(
+    (f) => f.kind === 'empty-cells' && f.choice === 'flag' && written.has(f.table.fileId),
+  );
 
   const rows = execution.results
     .map((result) => {
