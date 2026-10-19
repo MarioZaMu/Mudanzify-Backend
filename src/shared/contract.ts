@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -16,6 +16,9 @@ export const IpcChannel = {
   AppGetInfo: 'app:get-info',
   ThemeGet: 'theme:get',
   ThemeSet: 'theme:set',
+  OnboardingGet: 'onboarding:get',
+  OnboardingComplete: 'onboarding:complete',
+  OnboardingReset: 'onboarding:reset',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -47,6 +50,15 @@ export interface ThemeState {
   resolved: 'light' | 'dark';
 }
 
+/** Sender prepares and hands over data; receiver reviews and confirms it. */
+export const USER_ROLES = ['sender', 'receiver'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+export interface OnboardingState {
+  completed: boolean;
+  role: UserRole | null;
+}
+
 /** API available to the renderer as `window.mudanzify`. */
 export interface MudanzifyBridge {
   app: {
@@ -57,5 +69,12 @@ export interface MudanzifyBridge {
     set(preference: ThemePreference): Promise<ThemeState>;
     /** Subscribes to theme changes; returns an unsubscribe function. */
     onChange(listener: (state: ThemeState) => void): () => void;
+  };
+  onboarding: {
+    get(): Promise<OnboardingState>;
+    /** Marks the presentation as seen and stores the chosen role. */
+    complete(role: UserRole): Promise<OnboardingState>;
+    /** Shows the presentation again on next load (keeps nothing else). */
+    reset(): Promise<OnboardingState>;
   };
 }
