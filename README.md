@@ -19,6 +19,8 @@ mudanzify-backend/            mudanzify-frontend/
 - Preferencias del usuario (tema claro/oscuro/sistema, presentación vista y rol emisor/receptor) en `settings.json` dentro de la carpeta de datos de la app (`%APPDATA%/mudanzify-backend`).
 - `src/main/transfers`: traspasos guardados como JSON en `transfers/<id>.json` (escritura atómica). Las rutas solo llegan desde diálogos nativos, nunca desde la interfaz.
 - `src/main/inventory`: lectura **de solo lectura** del origen: categorías por extensión, archivos ocultos/temporales/vacíos y perfil de tablas CSV (con detección de separador y codificación) y Excel (ExcelJS).
+- `src/main/ai`: entrevista guiada con **Claude** (`@anthropic-ai/sdk`, salida estructurada con herramientas). A la IA solo se envía un resumen del inventario (cantidades, tipos de archivo y nombres de columnas), nunca contenidos, nombres de archivo ni rutas. Todo lo que devuelve el modelo se valida y recorta. Sin `ANTHROPIC_API_KEY` funciona en **modo demo** con preguntas simuladas adaptadas al inventario.
+- `src/main/interview`: estado de la entrevista (preguntando → revisando → lista) guardado dentro del traspaso; cada criterio se acepta, edita o rechaza por separado.
 - `samples/mudanza-demo`: datos ficticios para probar el inventario (vacíos, duplicados, temporales, CSV en Windows-1252).
 
 Seguridad: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, navegación bloqueada,
@@ -41,6 +43,10 @@ Mudanzify/
 npm install
 cp .env.example .env
 ```
+
+Para usar la IA real, pon tu clave de [console.anthropic.com](https://console.anthropic.com) en `.env`
+(`ANTHROPIC_API_KEY=...`). El archivo `.env` está en `.gitignore` y nunca se sube al repositorio.
+Sin clave, la entrevista funciona en modo demo.
 
 ## Scripts
 
