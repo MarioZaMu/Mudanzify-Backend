@@ -27,13 +27,15 @@
     "wait-on": "^9.5.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@google/genai": "^2.30.0",
     "dotenv": "^18.0.8",
     "exceljs": "^4.4.0"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "electron-winstaller": false
+    "electron-winstaller": false,
+    "@google/genai": false,
+    "protobufjs": false
   },
   "overrides": {
     "uuid": "^11.1.1"
