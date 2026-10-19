@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 7;
+export const CONTRACT_VERSION = 8;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -46,6 +46,17 @@ export const IpcChannel = {
   ExecutionOpenOutput: 'execution:open-output',
   ExecutionOpenReport: 'execution:open-report',
   ExecutionReset: 'execution:reset',
+  ReceptionsList: 'receptions:list',
+  ReceptionsOpen: 'receptions:open',
+  ReceptionsGet: 'receptions:get',
+  ReceptionsRemove: 'receptions:remove',
+  ReceptionsVerify: 'receptions:verify',
+  ReceptionsReviewBox: 'receptions:review-box',
+  ReceptionsConfirm: 'receptions:confirm',
+  ReceptionsReopen: 'receptions:reopen',
+  ReceptionsOpenFolder: 'receptions:open-folder',
+  ReceptionsOpenReport: 'receptions:open-report',
+  ReceptionsOpenReceipt: 'receptions:open-receipt',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -56,6 +67,7 @@ export const IpcEvent = {
   ScanProgress: 'transfers:scan-progress',
   AnalysisProgress: 'analysis:progress',
   ExecutionProgress: 'execution:progress',
+  VerifyProgress: 'receptions:verify-progress',
 } as const;
 
 export interface AppInfo {
@@ -481,6 +493,8 @@ export interface ItemResult {
   status: ItemStatus;
   /** Copies are checked against the original (size and SHA-256). */
   verified: boolean;
+  /** Fingerprint of the written file, saved in the manifest for the receiver. */
+  sha256: string | null;
   error: string | null;
 }
 
@@ -506,6 +520,103 @@ export interface ExecutionProgress {
   bytesDone: number;
   bytesTotal: number;
   /** The file being written, relative to the output folder. */
+  current: string | null;
+}
+
+/* ------------------------------------------------------------------ */
+/* Receiver: manifest, verification and receipt (phase 8)              */
+/* ------------------------------------------------------------------ */
+
+/** Written by the sender next to the report; it lets the receiver check every file. */
+export const MANIFEST_FILE_NAME = 'mudanzify.json';
+export const REPORT_FILE_NAME = 'Informe de Mudanzify.html';
+export const RECEIPT_FILE_NAME = 'Acuse de recibo.html';
+
+export interface ManifestFile {
+  /** Path inside the received folder, using "/" separators. */
+  path: string;
+  category: FileCategory;
+  size: number;
+  /** null when the file was too large to fingerprint; then only the size is checked. */
+  sha256: string | null;
+  changes: TableChange[];
+}
+
+export interface TransferManifest {
+  format: 'mudanzify-manifest';
+  version: 1;
+  transferName: string;
+  sentAt: string;
+  status: ExecutionStatus;
+  order: FileCategory[];
+  files: ManifestFile[];
+  /** Files the sender left out on purpose, so the receiver knows they are not missing. */
+  skipped: Array<{ path: string; category: FileCategory; reason: SkipReason }>;
+  criteria: Array<{ title: string; detail: string }>;
+  /** Empty cells the sender flagged to review. */
+  notes: Array<{ path: string; column: string; empty: number; total: number }>;
+}
+
+/** ok = identical; changed = different size or content; unverified = size matches, no fingerprint. */
+export type FileCheck = 'ok' | 'missing' | 'changed' | 'unverified';
+
+export interface ReceivedFile extends ManifestFile {
+  check: FileCheck | null;
+}
+
+export type BoxDecision = 'pending' | 'accepted' | 'reported';
+
+export interface ReceptionBox {
+  category: FileCategory;
+  files: number;
+  bytes: number;
+  /** Missing or changed files after the verification. */
+  issues: number;
+  decision: BoxDecision;
+  /** What the receiver wrote when reporting a problem. */
+  comment: string;
+}
+
+export type BoxReview = { action: 'accept' } | { action: 'report'; comment: string } | { action: 'undo' };
+
+export interface Reception {
+  id: string;
+  openedAt: string;
+  /** Absolute path of the received folder, chosen in a native dialog. */
+  folderPath: string;
+  folderName: string;
+  transferName: string;
+  sentAt: string;
+  sendStatus: ExecutionStatus;
+  criteria: TransferManifest['criteria'];
+  notes: TransferManifest['notes'];
+  skipped: TransferManifest['skipped'];
+  files: ReceivedFile[];
+  /** Files in the folder that the manifest does not list. */
+  extras: string[];
+  hasReport: boolean;
+  verifiedAt: string | null;
+  boxes: ReceptionBox[];
+  confirmedAt: string | null;
+  /** Receipt written in the folder for the sender; null if it could not be written. */
+  receiptPath: string | null;
+}
+
+export interface ReceptionSummary {
+  id: string;
+  transferName: string;
+  folderName: string;
+  openedAt: string;
+  verifiedAt: string | null;
+  confirmedAt: string | null;
+  files: number;
+  issues: number;
+}
+
+export interface VerifyProgress {
+  receptionId: string;
+  done: number;
+  total: number;
   current: string | null;
 }
 
@@ -580,5 +691,24 @@ export interface MudanzifyBridge {
     /** Forgets the last run (the copied files stay in the destination). */
     reset(id: string): Promise<TransferDraft>;
     onProgress(listener: (progress: ExecutionProgress) => void): () => void;
+  };
+  receptions: {
+    list(): Promise<ReceptionSummary[]>;
+    /** Opens a native folder dialog; resolves with null if cancelled. Throws RECEPTION_NO_MANIFEST if it is not a Mudanzify folder. */
+    open(): Promise<Reception | null>;
+    get(id: string): Promise<Reception>;
+    /** Forgets the reception in this app; the received files stay where they are. */
+    remove(id: string): Promise<void>;
+    /** Recomputes every file's fingerprint (read-only) and compares it with the manifest. */
+    verify(id: string): Promise<Reception>;
+    reviewBox(id: string, category: FileCategory, review: BoxReview): Promise<Reception>;
+    /** Requires every box decided; writes the receipt into the folder. */
+    confirm(id: string): Promise<Reception>;
+    /** Undoes the confirmation to change decisions (the old receipt is replaced on the next confirm). */
+    reopen(id: string): Promise<Reception>;
+    openFolder(id: string): Promise<void>;
+    openReport(id: string): Promise<void>;
+    openReceipt(id: string): Promise<void>;
+    onVerifyProgress(listener: (progress: VerifyProgress) => void): () => void;
   };
 }

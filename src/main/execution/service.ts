@@ -10,7 +10,8 @@ import type {
 import { absolutePathOf } from '../inventory/paths';
 import { inspectDestination } from '../transfers/destination';
 import { activeExecutions, loadTransfer, saveTransfer } from '../transfers/store';
-import { copyVerified, createUniqueFolder, ensureParent, resolveTarget } from './copy';
+import { copyVerified, createUniqueFolder, ensureParent, MAX_VERIFY_BYTES, resolveTarget, sha256 } from './copy';
+import { writeManifest } from './manifest';
 import { buildPlan } from './plan';
 import { writeReport } from './report';
 import { writeTransformedTable } from './tables';
@@ -49,7 +50,7 @@ function totalsOf(results: ItemResult[], plan: ExecutionPlan): TransferExecution
 /** Copies one plan item; the origin is only ever read. */
 async function processItem(draft: TransferDraft, outputPath: string, item: ExecutionPlan['items'][number]): Promise<ItemResult> {
   const base = { fileId: item.fileId, target: item.target };
-  if (item.action === 'skip' || !item.target) return { ...base, status: 'skipped', verified: false, error: null };
+  if (item.action === 'skip' || !item.target) return { ...base, status: 'skipped', verified: false, sha256: null, error: null };
 
   const file = draft.inventory!.files.find((candidate) => candidate.id === item.fileId);
   const source = file ? absolutePathOf(draft.sources, file) : null;
@@ -62,12 +63,13 @@ async function processItem(draft: TransferDraft, outputPath: string, item: Execu
       if (!table) throw new Error('No se encontró la tabla');
       await ensureParent(target);
       await writeTransformedTable(source, target, table.format, table.fileName, item.changes);
-      await stat(target);
-      return { ...base, status: 'transformed', verified: true, error: null };
+      const { size } = await stat(target);
+      const hash = size > MAX_VERIFY_BYTES ? null : await sha256(target);
+      return { ...base, status: 'transformed', verified: true, sha256: hash, error: null };
     }
 
-    const verified = await copyVerified(source, target);
-    return { ...base, status: 'copied', verified, error: null };
+    const hash = await copyVerified(source, target);
+    return { ...base, status: 'copied', verified: hash !== null, sha256: hash, error: null };
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     const message =
@@ -80,7 +82,7 @@ async function processItem(draft: TransferDraft, outputPath: string, item: Execu
             : error instanceof Error
               ? error.message
               : 'Error desconocido';
-    return { ...base, status: 'failed', verified: false, error: message };
+    return { ...base, status: 'failed', verified: false, sha256: null, error: message };
   }
 }
 
@@ -107,6 +109,7 @@ export async function startExecution(id: string, onProgress: ProgressListener): 
       target: item.target,
       status: 'pending',
       verified: false,
+      sha256: null,
       error: null,
     }));
     let execution: TransferExecution = {
@@ -151,6 +154,11 @@ export async function startExecution(id: string, onProgress: ProgressListener): 
       execution = { ...execution, reportPath: await writeReport(draft, execution) };
     } catch {
       // The copy itself is done; the app still shows the report.
+    }
+    try {
+      await writeManifest(draft, execution);
+    } catch {
+      // Without a manifest the receiver can still open the files, just not verify them.
     }
     return await saveTransfer({ ...draft, execution });
   } finally {

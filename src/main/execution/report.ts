@@ -1,19 +1,21 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type {
-  FileCategory,
-  ItemStatus,
-  SkipReason,
-  TableChange,
-  TransferDraft,
-  TransferExecution,
+import {
+  REPORT_FILE_NAME,
+  type FileCategory,
+  type ItemStatus,
+  type SkipReason,
+  type TableChange,
+  type TransferDraft,
+  type TransferExecution,
 } from '../../shared/contract';
+
+export { REPORT_FILE_NAME };
 
 /**
  * The report is a document for people, so its texts are Spanish and live here,
  * next to the data it describes. It never includes cell values.
  */
-export const REPORT_FILE_NAME = 'Informe de Mudanzify.html';
 
 const CATEGORY: Record<FileCategory, string> = {
   documents: 'Documentos',

@@ -5,9 +5,9 @@ import path from 'node:path';
 import { numbered } from './plan';
 
 /** Above this size only the size is compared; hashing would take too long. */
-const MAX_VERIFY_BYTES = 1024 * 1024 * 1024;
+export const MAX_VERIFY_BYTES = 1024 * 1024 * 1024;
 
-async function sha256(filePath: string): Promise<string> {
+export async function sha256(filePath: string): Promise<string> {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(filePath) as AsyncIterable<Buffer>) hash.update(chunk);
   return hash.digest('hex');
@@ -41,16 +41,16 @@ export async function ensureParent(filePath: string): Promise<void> {
 
 /**
  * Copies one file without ever overwriting (COPYFILE_EXCL) and checks the copy
- * against the original. Returns whether the content was verified by hash.
+ * against the original. Returns the copy's fingerprint, or null when it was too large to hash.
  */
-export async function copyVerified(source: string, target: string): Promise<boolean> {
+export async function copyVerified(source: string, target: string): Promise<string | null> {
   await ensureParent(target);
   await copyFile(source, target, constants.COPYFILE_EXCL);
 
   const [original, copy] = await Promise.all([stat(source), stat(target)]);
   if (original.size !== copy.size) throw new Error('The copy has a different size');
-  if (original.size > MAX_VERIFY_BYTES) return false;
+  if (original.size > MAX_VERIFY_BYTES) return null;
   const [a, b] = await Promise.all([sha256(source), sha256(target)]);
   if (a !== b) throw new Error('The copy has different content');
-  return true;
+  return b;
 }

@@ -1,5 +1,8 @@
 import {
   FILE_CATEGORIES,
+  MANIFEST_FILE_NAME,
+  RECEIPT_FILE_NAME,
+  REPORT_FILE_NAME,
   type ExecutionPlan,
   type PlanItem,
   type SkipReason,
@@ -8,7 +11,6 @@ import {
   type TransferDraft,
 } from '../../shared/contract';
 import { FULL_CSV_MAX_BYTES, XLSX_MAX_BYTES } from '../inventory/tables';
-import { REPORT_FILE_NAME } from './report';
 
 /** Characters Windows does not allow in file or folder names. */
 const INVALID_NAME = /[<>:"/\\|?*\u0000-\u001f]/g;
@@ -29,8 +31,8 @@ export const outputNameFor = (draft: TransferDraft) => `Mudanzify - ${safeName(d
 
 /** Each source becomes one entry of the output folder; repeated names get a number. */
 function rootNames(draft: TransferDraft): Map<string, string> {
-  // The report is written next to the sources, so its name is taken.
-  const used = new Set<string>([REPORT_FILE_NAME.toLowerCase()]);
+  // The report, manifest and receipt are written next to the sources, so their names are taken.
+  const used = new Set([REPORT_FILE_NAME, MANIFEST_FILE_NAME, RECEIPT_FILE_NAME].map((name) => name.toLowerCase()));
   const roots = new Map<string, string>();
   for (const source of draft.sources) {
     const base = safeName(source.name);
