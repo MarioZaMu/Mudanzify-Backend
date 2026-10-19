@@ -150,3 +150,51 @@ export async function profileXlsx(filePath: string): Promise<SheetProfile[]> {
     return profileRows(header, data, Math.max(0, sheet.actualRowCount - 1), sheet.name);
   });
 }
+
+/* --------------------------- Full reading --------------------------- */
+
+/** Limits for the analysis step, which reads every row instead of a sample. */
+const FULL_CSV_MAX_BYTES = 20 * 1024 * 1024;
+export const FULL_MAX_ROWS = 50_000;
+
+export interface TableData {
+  sheet: string;
+  header: string[];
+  rows: string[][];
+  /** True when the row limit cut the table. */
+  truncated: boolean;
+}
+
+/** Reads all rows of a CSV/XLSX (read-only) for duplicate, gap and sensitive-data checks. */
+export async function readTable(filePath: string, format: 'csv' | 'xlsx', name: string): Promise<TableData[]> {
+  const { size } = await stat(filePath);
+
+  if (format === 'csv') {
+    if (size > FULL_CSV_MAX_BYTES) throw new Error('Table too large');
+    const handle = await open(filePath, 'r');
+    let text: string;
+    try {
+      const buffer = Buffer.alloc(size);
+      await handle.read(buffer, 0, size, 0);
+      text = decode(buffer);
+    } finally {
+      await handle.close();
+    }
+    const delimiter = name.toLowerCase().endsWith('.tsv') ? '\t' : detectDelimiter(text.split(/\r?\n/, 1)[0] ?? '');
+    const [header = [], ...rows] = parseCsv(text, delimiter, FULL_MAX_ROWS + 2);
+    return [{ sheet: name, header, rows: rows.slice(0, FULL_MAX_ROWS), truncated: rows.length > FULL_MAX_ROWS }];
+  }
+
+  if (size > XLSX_MAX_BYTES) throw new Error('Table too large');
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  return workbook.worksheets.map((sheet) => {
+    const width = sheet.actualColumnCount;
+    const all: string[][] = [];
+    sheet.eachRow({ includeEmpty: false }, (row) => {
+      if (all.length <= FULL_MAX_ROWS + 1) all.push(rowValues(row, width));
+    });
+    const [header = [], ...rows] = all;
+    return { sheet: sheet.name, header, rows: rows.slice(0, FULL_MAX_ROWS), truncated: rows.length > FULL_MAX_ROWS };
+  });
+}
