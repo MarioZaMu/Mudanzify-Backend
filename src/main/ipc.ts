@@ -1,7 +1,8 @@
 import { app, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { CONTRACT_VERSION, IpcChannel, type AppInfo } from '../shared/contract';
 import { frontendDevUrl, isDev } from './env';
-import { isThemePreference } from './settings';
+import { completeOnboarding, getOnboardingState, resetOnboarding } from './onboarding';
+import { isThemePreference, isUserRole } from './settings';
 import { getThemeState, setThemePreference } from './theme';
 
 /** Rejects IPC calls that do not come from our own frontend. */
@@ -41,5 +42,21 @@ export function registerIpcHandlers(): void {
     // Never trust renderer input: validate before touching settings.
     if (!isThemePreference(preference)) throw new Error('Invalid theme preference');
     return setThemePreference(preference);
+  });
+
+  ipcMain.handle(IpcChannel.OnboardingGet, (event) => {
+    assertTrustedSender(event);
+    return getOnboardingState();
+  });
+
+  ipcMain.handle(IpcChannel.OnboardingComplete, (event, role: unknown) => {
+    assertTrustedSender(event);
+    if (!isUserRole(role)) throw new Error('Invalid user role');
+    return completeOnboarding(role);
+  });
+
+  ipcMain.handle(IpcChannel.OnboardingReset, (event) => {
+    assertTrustedSender(event);
+    return resetOnboarding();
   });
 }
