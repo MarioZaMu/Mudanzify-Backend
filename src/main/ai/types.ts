@@ -1,8 +1,8 @@
-import type { CriterionTopic, InterviewQuestion, InterviewTurn } from '../../shared/contract';
+import { INTERVIEW_LIMITS, type CriterionTopic, type InterviewQuestion, type InterviewTurn } from '../../shared/contract';
 import type { InventoryContext } from './context';
 
-export const MIN_QUESTIONS = 3;
-export const MAX_QUESTIONS = 6;
+export const MIN_QUESTIONS = INTERVIEW_LIMITS.minQuestions;
+export const MAX_QUESTIONS = INTERVIEW_LIMITS.maxQuestions;
 
 export interface SuggestionDraft {
   topic: CriterionTopic;

@@ -227,6 +227,9 @@ export interface AiStatus {
   model: string | null;
 }
 
+/** How many questions the interviewer may ask. */
+export const INTERVIEW_LIMITS = { minQuestions: 3, maxQuestions: 6 } as const;
+
 export interface InterviewQuestion {
   id: string;
   text: string;
