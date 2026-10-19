@@ -17,7 +17,7 @@ interface ScriptedQuestion {
   suggest: (answer: InterviewAnswer) => SuggestionDraft | null;
 }
 
-const CATEGORY_NAMES: Record<string, string> = {
+export const CATEGORY_NAMES: Record<string, string> = {
   documents: 'Documentos',
   spreadsheets: 'Hojas de cálculo',
   images: 'Imágenes',
