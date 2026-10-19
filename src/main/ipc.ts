@@ -1,16 +1,10 @@
-import { app, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { app, ipcMain } from 'electron';
 import { CONTRACT_VERSION, IpcChannel, type AppInfo } from '../shared/contract';
-import { frontendDevUrl, isDev } from './env';
 import { completeOnboarding, getOnboardingState, resetOnboarding } from './onboarding';
+import { assertTrustedSender } from './security';
 import { isThemePreference, isUserRole } from './settings';
 import { getThemeState, setThemePreference } from './theme';
-
-/** Rejects IPC calls that do not come from our own frontend. */
-function assertTrustedSender(event: IpcMainInvokeEvent): void {
-  const url = event.senderFrame?.url ?? '';
-  const trusted = url.startsWith('file://') || (isDev && url.startsWith(frontendDevUrl));
-  if (!trusted) throw new Error(`Untrusted IPC sender: ${url}`);
-}
+import { registerTransferHandlers } from './transfers/ipc';
 
 function getAppInfo(): AppInfo {
   return {
@@ -59,4 +53,6 @@ export function registerIpcHandlers(): void {
     assertTrustedSender(event);
     return resetOnboarding();
   });
+
+  registerTransferHandlers();
 }
