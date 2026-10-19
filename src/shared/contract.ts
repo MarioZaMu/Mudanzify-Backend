@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 5;
+export const CONTRACT_VERSION = 6;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -34,6 +34,12 @@ export const IpcChannel = {
   InterviewReview: 'interview:review',
   InterviewFinish: 'interview:finish',
   InterviewReset: 'interview:reset',
+  AnalysisRun: 'analysis:run',
+  AnalysisDecideFinding: 'analysis:decide-finding',
+  AnalysisReviewMapping: 'analysis:review-mapping',
+  AnalysisSetPriority: 'analysis:set-priority',
+  AnalysisConfirm: 'analysis:confirm',
+  AnalysisReset: 'analysis:reset',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -42,6 +48,7 @@ export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
 export const IpcEvent = {
   ThemeChanged: 'theme:changed',
   ScanProgress: 'transfers:scan-progress',
+  AnalysisProgress: 'analysis:progress',
 } as const;
 
 export interface AppInfo {
@@ -191,6 +198,8 @@ export interface TransferDraft {
   destination: TransferDestination | null;
   /** AI guided interview (phase 5); null until it starts. */
   interview: TransferInterview | null;
+  /** Detection, column mapping and priority (phase 6); null until it runs. */
+  analysis: TransferAnalysis | null;
 }
 
 export interface TransferSummary {
@@ -291,6 +300,129 @@ export type ReviewDecision =
   | { action: 'undo' }
   | { action: 'edit'; title: string; detail: string };
 
+/* ------------------------------------------------------------------ */
+/* Detection, column mapping and priority (phase 6)                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Detection runs locally: values never leave the computer. The AI only sees
+ * counts and column names to explain, map columns and propose a priority.
+ */
+export type FindingKind = 'duplicate-files' | 'duplicate-rows' | 'empty-cells' | 'sensitive-column' | 'junk-files';
+
+export type FindingChoice =
+  | 'keep-one'
+  | 'keep-all'
+  | 'remove-duplicates'
+  | 'flag'
+  | 'ignore'
+  | 'mask'
+  | 'exclude'
+  | 'include';
+
+/** Options the sender can pick for each kind; the last one always leaves the data as it is. */
+export const FINDING_CHOICES: Record<FindingKind, readonly FindingChoice[]> = {
+  'duplicate-files': ['keep-one', 'keep-all'],
+  'duplicate-rows': ['remove-duplicates', 'keep-all'],
+  'empty-cells': ['flag', 'ignore'],
+  'sensitive-column': ['mask', 'exclude', 'include'],
+  'junk-files': ['exclude', 'include'],
+};
+
+/** accepted = took the suggestion, changed = picked another option, dismissed = left the data as is. */
+export type FindingStatus = 'pending' | 'accepted' | 'changed' | 'dismissed';
+
+export type SensitiveType = 'email' | 'phone' | 'national-id' | 'card';
+
+export interface TableRef {
+  fileId: string;
+  sheet: string;
+}
+
+interface FindingBase {
+  id: string;
+  risk: RiskLevel;
+  suggested: FindingChoice;
+  choice: FindingChoice | null;
+  status: FindingStatus;
+}
+
+export type Finding = FindingBase &
+  (
+    | { kind: 'duplicate-files'; fileIds: string[]; keepFileId: string; bytes: number }
+    | { kind: 'duplicate-rows'; table: TableRef; duplicateRows: number; totalRows: number }
+    | { kind: 'empty-cells'; table: TableRef; column: string; empty: number; total: number }
+    | {
+        kind: 'sensitive-column';
+        table: TableRef;
+        column: string;
+        sensitiveType: SensitiveType;
+        matches: number;
+        total: number;
+        /** A masked example such as "a***@correo.com"; it stays on this computer. */
+        example: string;
+      }
+    | { kind: 'junk-files'; flag: FileFlag; fileIds: string[] }
+  );
+
+export type FindingDecision =
+  | { action: 'accept' }
+  | { action: 'change'; choice: FindingChoice }
+  | { action: 'dismiss' }
+  | { action: 'undo' };
+
+export interface ColumnSource extends TableRef {
+  column: string;
+}
+
+/** Columns that hold the same data under different names, unified under one name. */
+export interface ColumnMapping {
+  id: string;
+  standardName: string;
+  sources: ColumnSource[];
+  reason: string;
+  status: SuggestionStatus;
+  /** The AI's original name, kept when the sender edits it. */
+  original: string | null;
+}
+
+export type MappingDecision =
+  | { action: 'accept' }
+  | { action: 'reject' }
+  | { action: 'undo' }
+  | { action: 'edit'; standardName: string };
+
+export interface PriorityPlan {
+  /** Boxes in the order they will be packed. */
+  order: FileCategory[];
+  /** The AI's proposal, to compare with or go back to. */
+  suggested: FileCategory[];
+  reasons: Partial<Record<FileCategory, string>>;
+  status: SuggestionStatus;
+}
+
+export type PriorityDecision = { action: 'accept' } | { action: 'reorder'; order: FileCategory[] } | { action: 'reset' };
+
+export interface TransferAnalysis {
+  analyzedAt: string;
+  mode: AiMode;
+  /** Short explanation of the findings, written by the AI (or the demo script). */
+  summary: string;
+  findings: Finding[];
+  mappings: ColumnMapping[];
+  priority: PriorityPlan;
+  /** Tables that could not be read completely (too large or damaged). */
+  skippedTables: string[];
+  confirmed: boolean;
+}
+
+export interface AnalysisProgress {
+  transferId: string;
+  phase: 'hashing' | 'tables' | 'ai';
+  done: number;
+  total: number;
+}
+
 /** API available to the renderer as `window.mudanzify`. */
 export interface MudanzifyBridge {
   app: {
@@ -338,5 +470,16 @@ export interface MudanzifyBridge {
     /** Confirms the reviewed criteria; requires every suggestion decided. */
     finish(id: string): Promise<TransferDraft>;
     reset(id: string): Promise<TransferDraft>;
+  };
+  analysis: {
+    /** Reads the inventory (read-only), detects issues and asks the AI for mapping and priority. */
+    run(id: string): Promise<TransferDraft>;
+    decideFinding(id: string, findingId: string, decision: FindingDecision): Promise<TransferDraft>;
+    reviewMapping(id: string, mappingId: string, decision: MappingDecision): Promise<TransferDraft>;
+    setPriority(id: string, decision: PriorityDecision): Promise<TransferDraft>;
+    /** Saves the reviewed plan; requires every finding and mapping decided. */
+    confirm(id: string): Promise<TransferDraft>;
+    reset(id: string): Promise<TransferDraft>;
+    onProgress(listener: (progress: AnalysisProgress) => void): () => void;
   };
 }
