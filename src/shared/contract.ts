@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 6;
+export const CONTRACT_VERSION = 7;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -40,6 +40,12 @@ export const IpcChannel = {
   AnalysisSetPriority: 'analysis:set-priority',
   AnalysisConfirm: 'analysis:confirm',
   AnalysisReset: 'analysis:reset',
+  ExecutionPreview: 'execution:preview',
+  ExecutionStart: 'execution:start',
+  ExecutionCancel: 'execution:cancel',
+  ExecutionOpenOutput: 'execution:open-output',
+  ExecutionOpenReport: 'execution:open-report',
+  ExecutionReset: 'execution:reset',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -49,6 +55,7 @@ export const IpcEvent = {
   ThemeChanged: 'theme:changed',
   ScanProgress: 'transfers:scan-progress',
   AnalysisProgress: 'analysis:progress',
+  ExecutionProgress: 'execution:progress',
 } as const;
 
 export interface AppInfo {
@@ -200,6 +207,8 @@ export interface TransferDraft {
   interview: TransferInterview | null;
   /** Detection, column mapping and priority (phase 6); null until it runs. */
   analysis: TransferAnalysis | null;
+  /** Last run of the copy (phase 7); null until it starts. */
+  execution: TransferExecution | null;
 }
 
 export interface TransferSummary {
@@ -423,6 +432,83 @@ export interface AnalysisProgress {
   total: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* Plan, execution and report (phase 7)                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The transfer only copies: the origin is never moved, changed or deleted.
+ * Everything goes into a new folder inside the destination, so nothing that
+ * already exists there is overwritten.
+ */
+export type PlanAction = 'copy' | 'transform' | 'skip';
+
+/** Why a file is not copied. */
+export type SkipReason = 'duplicate' | 'junk' | 'too-large';
+
+/** Changes written into the copy of a table; the original stays as it is. */
+export type TableChange =
+  | { kind: 'mask'; sheet: string; column: string; type: SensitiveType }
+  | { kind: 'drop-column'; sheet: string; column: string }
+  | { kind: 'remove-duplicates'; sheet: string; rows: number }
+  | { kind: 'rename'; sheet: string; column: string; to: string };
+
+export interface PlanItem {
+  fileId: string;
+  /** Path inside the output folder, using "/" separators. */
+  target: string | null;
+  category: FileCategory;
+  size: number;
+  action: PlanAction;
+  reason: SkipReason | null;
+  changes: TableChange[];
+}
+
+export interface ExecutionPlan {
+  /** Name of the new folder created inside the destination. */
+  outputName: string;
+  /** Boxes in the order they will be packed. */
+  order: FileCategory[];
+  items: PlanItem[];
+  totals: { copy: number; transform: number; skip: number; bytes: number };
+}
+
+export type ItemStatus = 'pending' | 'copied' | 'transformed' | 'skipped' | 'failed';
+
+export interface ItemResult {
+  fileId: string;
+  target: string | null;
+  status: ItemStatus;
+  /** Copies are checked against the original (size and SHA-256). */
+  verified: boolean;
+  error: string | null;
+}
+
+export type ExecutionStatus = 'running' | 'done' | 'cancelled' | 'failed';
+
+export interface TransferExecution {
+  status: ExecutionStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  /** Absolute path of the folder created in the destination. */
+  outputPath: string;
+  /** HTML report written in the output folder; null if it could not be written. */
+  reportPath: string | null;
+  plan: ExecutionPlan;
+  results: ItemResult[];
+  totals: { copied: number; transformed: number; skipped: number; failed: number; bytes: number };
+}
+
+export interface ExecutionProgress {
+  transferId: string;
+  done: number;
+  total: number;
+  bytesDone: number;
+  bytesTotal: number;
+  /** The file being written, relative to the output folder. */
+  current: string | null;
+}
+
 /** API available to the renderer as `window.mudanzify`. */
 export interface MudanzifyBridge {
   app: {
@@ -481,5 +567,18 @@ export interface MudanzifyBridge {
     confirm(id: string): Promise<TransferDraft>;
     reset(id: string): Promise<TransferDraft>;
     onProgress(listener: (progress: AnalysisProgress) => void): () => void;
+  };
+  execution: {
+    /** What will be copied, transformed or skipped; computed from the confirmed plan, writes nothing. */
+    preview(id: string): Promise<ExecutionPlan>;
+    /** Copies into a new folder of the destination; resolves when it ends (done, cancelled or failed). */
+    start(id: string): Promise<TransferDraft>;
+    /** Stops after the file being copied; what was copied stays. */
+    cancel(id: string): Promise<void>;
+    openOutput(id: string): Promise<void>;
+    openReport(id: string): Promise<void>;
+    /** Forgets the last run (the copied files stay in the destination). */
+    reset(id: string): Promise<TransferDraft>;
+    onProgress(listener: (progress: ExecutionProgress) => void): () => void;
   };
 }

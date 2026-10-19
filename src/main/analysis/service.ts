@@ -95,7 +95,8 @@ export function runAnalysis(id: string, onProgress: ProgressListener): Promise<T
       skippedTables: skipped,
       confirmed: false,
     };
-    return saveTransfer({ ...draft, analysis });
+    // A new analysis means a new plan: the previous run no longer describes it.
+    return saveTransfer({ ...draft, analysis, execution: null });
   });
 }
 
@@ -225,5 +226,5 @@ export async function confirmAnalysis(id: string): Promise<TransferDraft> {
 
 export async function resetAnalysis(id: string): Promise<TransferDraft> {
   const draft = await loadTransfer(id);
-  return saveTransfer({ ...draft, analysis: null });
+  return saveTransfer({ ...draft, analysis: null, execution: null });
 }

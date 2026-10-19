@@ -24,6 +24,7 @@ export async function createTransfer(): Promise<TransferDraft> {
     destination: null,
     interview: null,
     analysis: null,
+    execution: null,
   });
 }
 
@@ -40,7 +41,7 @@ async function withSources(draft: TransferDraft, sources: TransferSource[]): Pro
   const destination = draft.destination
     ? await inspectDestination(draft.destination.path, sources, null)
     : null;
-  return saveTransfer({ ...draft, sources, inventory: null, destination, interview: null, analysis: null });
+  return saveTransfer({ ...draft, sources, inventory: null, destination, interview: null, analysis: null, execution: null });
 }
 
 export async function addSources(window: BrowserWindow, id: string, kind: SourceKind): Promise<TransferDraft> {
@@ -107,7 +108,7 @@ export function scanTransfer(id: string, onProgress: (progress: ScanProgress) =>
       ? await inspectDestination(draft.destination.path, draft.sources, inventory.totals.bytes)
       : null;
     // A new inventory means the interview and analysis describe old data.
-    return saveTransfer({ ...draft, inventory, destination, interview: null, analysis: null });
+    return saveTransfer({ ...draft, inventory, destination, interview: null, analysis: null, execution: null });
   })().finally(() => runningScans.delete(id));
 
   runningScans.set(id, job);

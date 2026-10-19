@@ -4,6 +4,7 @@ import {
   IpcChannel,
   IpcEvent,
   type AnalysisProgress,
+  type ExecutionProgress,
   type MudanzifyBridge,
   type ScanProgress,
   type ThemeState,
@@ -67,6 +68,19 @@ const bridge: MudanzifyBridge = {
       const handler = (_event: IpcRendererEvent, progress: AnalysisProgress) => listener(progress);
       ipcRenderer.on(IpcEvent.AnalysisProgress, handler);
       return () => ipcRenderer.removeListener(IpcEvent.AnalysisProgress, handler);
+    },
+  },
+  execution: {
+    preview: (id) => ipcRenderer.invoke(IpcChannel.ExecutionPreview, id),
+    start: (id) => ipcRenderer.invoke(IpcChannel.ExecutionStart, id),
+    cancel: (id) => ipcRenderer.invoke(IpcChannel.ExecutionCancel, id),
+    openOutput: (id) => ipcRenderer.invoke(IpcChannel.ExecutionOpenOutput, id),
+    openReport: (id) => ipcRenderer.invoke(IpcChannel.ExecutionOpenReport, id),
+    reset: (id) => ipcRenderer.invoke(IpcChannel.ExecutionReset, id),
+    onProgress: (listener) => {
+      const handler = (_event: IpcRendererEvent, progress: ExecutionProgress) => listener(progress);
+      ipcRenderer.on(IpcEvent.ExecutionProgress, handler);
+      return () => ipcRenderer.removeListener(IpcEvent.ExecutionProgress, handler);
     },
   },
 };

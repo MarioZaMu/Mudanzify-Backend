@@ -37,7 +37,7 @@ function profileRows(header: string[], rows: string[][], totalRows: number, name
 
 /* ------------------------------- CSV ------------------------------- */
 
-function detectDelimiter(firstLine: string): string {
+export function detectDelimiter(firstLine: string): string {
   const candidates = [',', ';', '\t', '|'];
   return candidates.reduce((best, candidate) =>
     firstLine.split(candidate).length > firstLine.split(best).length ? candidate : best,
@@ -82,7 +82,7 @@ export function parseCsv(text: string, delimiter: string, maxRows: number): stri
 }
 
 /** Spanish Excel exports CSV as Windows-1252: fall back to latin1 when UTF-8 is invalid. */
-function decode(buffer: Buffer): string {
+export function decode(buffer: Buffer): string {
   const utf8 = buffer.toString('utf8');
   const text = utf8.includes('�') ? buffer.toString('latin1') : utf8;
   return text.replace(/^﻿/, '');
@@ -119,7 +119,7 @@ export async function profileCsv(filePath: string, name: string): Promise<SheetP
 
 /* ------------------------------- XLSX ------------------------------ */
 
-function cellToString(value: ExcelJS.CellValue): string {
+export function cellToString(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === 'object') {
@@ -132,7 +132,7 @@ function cellToString(value: ExcelJS.CellValue): string {
   return String(value);
 }
 
-function rowValues(row: ExcelJS.Row, width: number): string[] {
+export function rowValues(row: ExcelJS.Row, width: number): string[] {
   return Array.from({ length: width }, (_, index) => cellToString(row.getCell(index + 1).value));
 }
 
@@ -154,7 +154,7 @@ export async function profileXlsx(filePath: string): Promise<SheetProfile[]> {
 /* --------------------------- Full reading --------------------------- */
 
 /** Limits for the analysis step, which reads every row instead of a sample. */
-const FULL_CSV_MAX_BYTES = 20 * 1024 * 1024;
+export const FULL_CSV_MAX_BYTES = 20 * 1024 * 1024;
 export const FULL_MAX_ROWS = 50_000;
 
 export interface TableData {
