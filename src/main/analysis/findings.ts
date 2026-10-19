@@ -113,9 +113,12 @@ export function buildFindings(
     }
   }
 
+  // Each file goes to its first flag only, so one file never gets two decisions.
   const flags: FileFlag[] = ['temporary', 'hidden', 'empty'];
   for (const flag of flags) {
-    const fileIds = inventory.files.filter((file) => file.flags.includes(flag)).map((file) => file.id);
+    const fileIds = inventory.files
+      .filter((file) => flags.find((candidate) => file.flags.includes(candidate)) === flag)
+      .map((file) => file.id);
     if (fileIds.length > 0) findings.push({ ...base('warn', suggest.junk), kind: 'junk-files', flag, fileIds });
   }
 
