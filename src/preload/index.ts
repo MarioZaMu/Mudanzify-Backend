@@ -5,6 +5,7 @@ import {
   IpcEvent,
   type AnalysisProgress,
   type ExecutionProgress,
+  type VerifyProgress,
   type MudanzifyBridge,
   type ScanProgress,
   type ThemeState,
@@ -81,6 +82,24 @@ const bridge: MudanzifyBridge = {
       const handler = (_event: IpcRendererEvent, progress: ExecutionProgress) => listener(progress);
       ipcRenderer.on(IpcEvent.ExecutionProgress, handler);
       return () => ipcRenderer.removeListener(IpcEvent.ExecutionProgress, handler);
+    },
+  },
+  receptions: {
+    list: () => ipcRenderer.invoke(IpcChannel.ReceptionsList),
+    open: () => ipcRenderer.invoke(IpcChannel.ReceptionsOpen),
+    get: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsGet, id),
+    remove: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsRemove, id),
+    verify: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsVerify, id),
+    reviewBox: (id, category, review) => ipcRenderer.invoke(IpcChannel.ReceptionsReviewBox, id, category, review),
+    confirm: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsConfirm, id),
+    reopen: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsReopen, id),
+    openFolder: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsOpenFolder, id),
+    openReport: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsOpenReport, id),
+    openReceipt: (id) => ipcRenderer.invoke(IpcChannel.ReceptionsOpenReceipt, id),
+    onVerifyProgress: (listener) => {
+      const handler = (_event: IpcRendererEvent, progress: VerifyProgress) => listener(progress);
+      ipcRenderer.on(IpcEvent.VerifyProgress, handler);
+      return () => ipcRenderer.removeListener(IpcEvent.VerifyProgress, handler);
     },
   },
 };

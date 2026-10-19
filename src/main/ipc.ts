@@ -6,6 +6,7 @@ import { isThemePreference, isUserRole } from './settings';
 import { getThemeState, setThemePreference } from './theme';
 import { registerAnalysisHandlers } from './analysis/ipc';
 import { registerExecutionHandlers } from './execution/ipc';
+import { registerReceptionHandlers } from './receptions/ipc';
 import { registerInterviewHandlers } from './interview/ipc';
 import { registerTransferHandlers } from './transfers/ipc';
 
@@ -61,4 +62,5 @@ export function registerIpcHandlers(): void {
   registerInterviewHandlers();
   registerAnalysisHandlers();
   registerExecutionHandlers();
+  registerReceptionHandlers();
 }
