@@ -17,7 +17,7 @@ export { REPORT_FILE_NAME };
  * next to the data it describes. It never includes cell values.
  */
 
-const CATEGORY: Record<FileCategory, string> = {
+export const CATEGORY: Record<FileCategory, string> = {
   documents: 'Documentos',
   spreadsheets: 'Hojas de cálculo',
   images: 'Imágenes',
@@ -48,13 +48,13 @@ const RUN_STATUS: Record<TransferExecution['status'], string> = {
   failed: 'Con errores',
 };
 
-const escape = (value: string) =>
+export const escape = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const date = (iso: string | null) =>
+export const date = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('es', { dateStyle: 'long', timeStyle: 'short' }) : '—';
 
-function bytes(value: number): string {
+export function bytes(value: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let size = value;
   let unit = 0;
