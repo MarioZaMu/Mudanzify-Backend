@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 4;
+export const CONTRACT_VERSION = 5;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -28,6 +28,12 @@ export const IpcChannel = {
   TransfersRemoveSource: 'transfers:remove-source',
   TransfersPickDestination: 'transfers:pick-destination',
   TransfersScan: 'transfers:scan',
+  AiGetStatus: 'ai:get-status',
+  InterviewStart: 'interview:start',
+  InterviewAnswer: 'interview:answer',
+  InterviewReview: 'interview:review',
+  InterviewFinish: 'interview:finish',
+  InterviewReset: 'interview:reset',
 } as const;
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel];
@@ -183,6 +189,8 @@ export interface TransferDraft {
   sources: TransferSource[];
   inventory: Inventory | null;
   destination: TransferDestination | null;
+  /** AI guided interview (phase 5); null until it starts. */
+  interview: TransferInterview | null;
 }
 
 export interface TransferSummary {
@@ -202,6 +210,83 @@ export interface ScanProgress {
   bytesSeen: number;
   currentPath: string;
 }
+
+/* ------------------------------------------------------------------ */
+/* AI guided interview (phase 5)                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * `ai` uses the real model (API key in .env); `demo` uses scripted questions
+ * so the app can be tried without a key. The UI always says which one is on.
+ */
+export type AiMode = 'ai' | 'demo';
+
+export interface AiStatus {
+  mode: AiMode;
+  /** Model id when mode is `ai`. */
+  model: string | null;
+}
+
+export interface InterviewQuestion {
+  id: string;
+  text: string;
+  /** Why the AI asks this, shown to the user for transparency. */
+  why: string;
+  /** Quick answers; the user can also write their own. */
+  options: string[];
+  multiple: boolean;
+}
+
+export interface InterviewAnswer {
+  choices: string[];
+  text: string;
+  skipped: boolean;
+}
+
+export interface InterviewTurn {
+  question: InterviewQuestion;
+  /** Null while the question is waiting for an answer. */
+  answer: InterviewAnswer | null;
+}
+
+export const CRITERION_TOPICS = ['scope', 'priority', 'duplicates', 'gaps', 'sensitive', 'other'] as const;
+export type CriterionTopic = (typeof CRITERION_TOPICS)[number];
+
+export type SuggestionStatus = 'pending' | 'accepted' | 'edited' | 'rejected';
+
+/** A transfer rule proposed by the AI. Only the sender can accept it. */
+export interface CriterionSuggestion {
+  id: string;
+  topic: CriterionTopic;
+  title: string;
+  detail: string;
+  status: SuggestionStatus;
+  /** The AI's original wording, kept when the sender edits it. */
+  original: { title: string; detail: string } | null;
+}
+
+/** asking → reviewing (summary + suggestions) → done (criteria confirmed). */
+export type InterviewStatus = 'asking' | 'reviewing' | 'done';
+
+export interface TransferInterview {
+  mode: AiMode;
+  status: InterviewStatus;
+  turns: InterviewTurn[];
+  summary: string | null;
+  suggestions: CriterionSuggestion[];
+}
+
+/** Answer sent by the renderer; null skips the question. */
+export interface InterviewAnswerInput {
+  choices: string[];
+  text: string;
+}
+
+export type ReviewDecision =
+  | { action: 'accept' }
+  | { action: 'reject' }
+  | { action: 'undo' }
+  | { action: 'edit'; title: string; detail: string };
 
 /** API available to the renderer as `window.mudanzify`. */
 export interface MudanzifyBridge {
@@ -236,5 +321,19 @@ export interface MudanzifyBridge {
     /** Reads the sources (read-only) and builds the inventory. */
     scan(id: string): Promise<TransferDraft>;
     onScanProgress(listener: (progress: ScanProgress) => void): () => void;
+  };
+  ai: {
+    getStatus(): Promise<AiStatus>;
+  };
+  interview: {
+    /** Starts (or restarts) the interview and asks the first question. */
+    start(id: string): Promise<TransferDraft>;
+    /** Answers the open question (null skips it) and gets the next step. */
+    answer(id: string, answer: InterviewAnswerInput | null): Promise<TransferDraft>;
+    /** Accept, edit, reject or undo one suggestion. */
+    review(id: string, suggestionId: string, decision: ReviewDecision): Promise<TransferDraft>;
+    /** Confirms the reviewed criteria; requires every suggestion decided. */
+    finish(id: string): Promise<TransferDraft>;
+    reset(id: string): Promise<TransferDraft>;
   };
 }
