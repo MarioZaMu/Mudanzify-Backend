@@ -21,6 +21,11 @@ const bridge: MudanzifyBridge = {
       return () => ipcRenderer.removeListener(IpcEvent.ThemeChanged, handler);
     },
   },
+  onboarding: {
+    get: () => ipcRenderer.invoke(IpcChannel.OnboardingGet),
+    complete: (role) => ipcRenderer.invoke(IpcChannel.OnboardingComplete, role),
+    reset: () => ipcRenderer.invoke(IpcChannel.OnboardingReset),
+  },
 };
 
 contextBridge.exposeInMainWorld(BRIDGE_KEY, bridge);
