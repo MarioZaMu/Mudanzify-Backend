@@ -14,7 +14,8 @@
     "renderer:build": "npm --prefix ../mudanzify-frontend run build",
     "renderer:copy": "node scripts/copy-renderer.mjs",
     "start": "npm run build && electron .",
-    "dist": "npm run renderer:build && npm run renderer:copy && npm run build && electron-builder --win"
+    "ai:key": "node scripts/prepare-ai-key.mjs",
+    "dist": "npm run renderer:build && npm run renderer:copy && npm run ai:key && npm run build && electron-builder --win"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

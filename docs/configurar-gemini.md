@@ -36,8 +36,13 @@ Sin clave, la app funciona igual en **modo demo** (preguntas simuladas) y lo ind
 
 ## 3. Cosas que conviene saber
 
-- **El `.env` nunca se sube a GitHub** (está en `.gitignore`) y **no se incluye en el instalador `.exe`**.
-  Quien instale la app sin clave usa el modo demo, así que nadie gasta tu cuota.
+- **El `.env` nunca se sube a GitHub** (está en `.gitignore`).
+  Al generar el instalador con `npm run dist`, si `GEMINI_API_KEY` está en tu `.env`, se copia a `build/ai.key`
+  (también ignorado por git) y el `.exe` la lleva dentro: la app instalada en otra PC ya trae IA, sin configurar nada.
+  Sin clave en `.env`, el instalador queda en modo demo.
+- **Reparte ese instalador en privado** (USB, nube, enlace tuyo). Quien tenga el `.exe` puede extraer la clave.
+  Usa una clave solo para la presentación, restringida a la API de Gemini, y bórrala o rótala al terminar.
+  No subas ese `.exe` a un Release público.
 - **Límites gratuitos**: Google limita las solicitudes por minuto y por día, y a veces cambia esas cifras.
   Puedes ver tus límites actuales en AI Studio. Una entrevista usa unas 4 a 7 solicitudes.
   Si llegas al límite, la app muestra: *"Llegaste al límite gratuito de Gemini por ahora…"*. Espera y vuelve a intentar.

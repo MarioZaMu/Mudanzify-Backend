@@ -13,6 +13,10 @@ files:
   - build/icon.png
   - "!**/*.map"
 
+extraResources:
+  - from: build/ai.key
+    to: ai.key
+
 asar: true
 
 win:
