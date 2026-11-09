@@ -12,7 +12,7 @@ import {
 } from '../../shared/contract';
 import { cleanText } from '../ai/sanitize';
 import { newId } from '../transfers/store';
-import { readManifest } from './manifest';
+import { readManifest, RECEPTION_ERROR } from './manifest';
 import { writeReceipt } from './receipt';
 import { loadReception, saveReception } from './store';
 import { checkFile, findExtras } from './verify';
@@ -88,6 +88,8 @@ export async function verifyReception(id: string, onProgress: ProgressListener):
   verifying.add(id);
   try {
     const reception = await loadReception(id);
+    // A moved or unplugged folder must not read as "every file is missing".
+    if (!(await exists(reception.folderPath))) throw new Error(RECEPTION_ERROR.folderMissing);
     const files = [...reception.files];
     for (const [index, file] of files.entries()) {
       onProgress({ done: index, total: files.length, current: file.path });

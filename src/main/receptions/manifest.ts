@@ -13,7 +13,10 @@ import {
 import { cleanText } from '../ai/sanitize';
 
 /** Code the renderer recognizes: the chosen folder is not a Mudanzify delivery. */
-export const RECEPTION_ERROR = { noManifest: 'RECEPTION_NO_MANIFEST' } as const;
+export const RECEPTION_ERROR = {
+  noManifest: 'RECEPTION_NO_MANIFEST',
+  folderMissing: 'RECEPTION_FOLDER_MISSING',
+} as const;
 
 const MAX_MANIFEST_BYTES = 50 * 1024 * 1024;
 const MAX_FILES = 200_000;
