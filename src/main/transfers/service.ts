@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { dialog, type BrowserWindow } from 'electron';
 import type { ScanProgress, SourceKind, TransferDraft, TransferSource } from '../../shared/contract';
+import { texts } from '../i18n';
 import { scanSources } from '../inventory/scanner';
 import { inspectDestination } from './destination';
 import { deleteTransfer, loadTransfer, newId, saveTransfer } from './store';
@@ -8,8 +9,8 @@ import { deleteTransfer, loadTransfer, newId, saveTransfer } from './store';
 const MAX_NAME_LENGTH = 80;
 
 function defaultName(): string {
-  const date = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'long' }).format(new Date());
-  return `Traspaso del ${date}`;
+  const { locale, defaultName: name } = texts();
+  return name(new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(new Date()));
 }
 
 export async function createTransfer(): Promise<TransferDraft> {
@@ -47,14 +48,14 @@ async function withSources(draft: TransferDraft, sources: TransferSource[]): Pro
 export async function addSources(window: BrowserWindow, id: string, kind: SourceKind): Promise<TransferDraft> {
   const draft = await loadTransfer(id);
   const result = await dialog.showOpenDialog(window, {
-    title: kind === 'folder' ? 'Elige las carpetas de origen' : 'Elige los archivos de origen',
-    buttonLabel: 'Agregar',
+    title: kind === 'folder' ? texts().dialogs.sourceFolders.title : texts().dialogs.sourceFiles.title,
+    buttonLabel: texts().dialogs.sourceFolders.button,
     properties: kind === 'folder' ? ['openDirectory', 'multiSelections'] : ['openFile', 'multiSelections'],
     filters:
       kind === 'file'
         ? [
-            { name: 'Hojas de cálculo', extensions: ['xlsx', 'xlsm', 'csv', 'tsv'] },
-            { name: 'Todos los archivos', extensions: ['*'] },
+            { name: texts().dialogs.spreadsheets, extensions: ['xlsx', 'xlsm', 'csv', 'tsv'] },
+            { name: texts().dialogs.allFiles, extensions: ['*'] },
           ]
         : undefined,
   });
@@ -79,8 +80,8 @@ export async function removeSource(id: string, sourceId: unknown): Promise<Trans
 export async function pickDestination(window: BrowserWindow, id: string): Promise<TransferDraft> {
   const draft = await loadTransfer(id);
   const result = await dialog.showOpenDialog(window, {
-    title: 'Elige la carpeta de destino',
-    buttonLabel: 'Usar esta carpeta',
+    title: texts().dialogs.destination.title,
+    buttonLabel: texts().dialogs.destination.button,
     properties: ['openDirectory', 'createDirectory'],
   });
   if (result.canceled || result.filePaths.length === 0) return draft;

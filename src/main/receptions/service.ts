@@ -12,6 +12,7 @@ import {
 } from '../../shared/contract';
 import { cleanText } from '../ai/sanitize';
 import { newId } from '../transfers/store';
+import { texts } from '../i18n';
 import { readManifest, RECEPTION_ERROR } from './manifest';
 import { writeReceipt } from './receipt';
 import { loadReception, saveReception } from './store';
@@ -49,8 +50,8 @@ async function exists(filePath: string): Promise<boolean> {
 /** The folder comes from a native dialog: the renderer never sends paths. */
 export async function openReception(window: BrowserWindow): Promise<Reception | null> {
   const result = await dialog.showOpenDialog(window, {
-    title: 'Elige la carpeta que recibiste',
-    buttonLabel: 'Abrir',
+    title: texts().dialogs.receivedFolder.title,
+    buttonLabel: texts().dialogs.receivedFolder.button,
     properties: ['openDirectory'],
   });
   if (result.canceled || result.filePaths.length === 0) return null;

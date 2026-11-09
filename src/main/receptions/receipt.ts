@@ -1,44 +1,33 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { RECEIPT_FILE_NAME, type BoxDecision, type FileCheck, type Reception } from '../../shared/contract';
-import { bytes, CATEGORY, date, escape } from '../execution/report';
+import { RECEIPT_FILE_NAME, type Reception } from '../../shared/contract';
+import { bytes, date, escape } from '../execution/report';
+import { texts } from '../i18n';
 
-/** Like the sender's report, a document for people: Spanish texts, no cell values. */
-const DECISION: Record<BoxDecision, string> = {
-  pending: 'Sin revisar',
-  accepted: 'Recibida conforme',
-  reported: 'Con problema',
-};
-
-const CHECK: Record<FileCheck, string> = {
-  ok: 'Idéntico',
-  unverified: 'Mismo tamaño (sin huella)',
-  missing: 'Falta',
-  changed: 'Distinto al enviado',
-};
-
+/** Like the sender's report, a document for people (texts in `../i18n`) with no cell values. */
 function buildHtml(reception: Reception): string {
+  const { locale, category, decision, check, receipt: t } = texts();
   const problems = reception.files.filter((file) => file.check === 'missing' || file.check === 'changed');
   const allGood = reception.boxes.every((box) => box.decision === 'accepted') && problems.length === 0;
 
   const boxes = reception.boxes
     .map(
       (box) => `<tr class="${box.decision}">
-        <td>${CATEGORY[box.category]}</td>
+        <td>${category[box.category]}</td>
         <td>${box.files}</td>
         <td>${bytes(box.bytes)}</td>
         <td>${box.issues}</td>
-        <td><b>${DECISION[box.decision]}</b>${box.comment ? `<br>${escape(box.comment)}` : ''}</td>
+        <td><b>${decision[box.decision]}</b>${box.comment ? `<br>${escape(box.comment)}` : ''}</td>
       </tr>`,
     )
     .join('');
 
   return `<!doctype html>
-<html lang="es">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Acuse de recibo · ${escape(reception.transferName)}</title>
+<title>${t.document} · ${escape(reception.transferName)}</title>
 <style>
   :root { --ink:#1f1b16; --muted:#6b6258; --line:#e7dfd3; --paper:#fbf8f3; --ok:#15803d; --bad:#b91c1c; }
   body { margin: 0; font: 15px/1.55 system-ui, "Segoe UI", sans-serif; color: var(--ink); background: var(--paper); }
@@ -58,32 +47,32 @@ function buildHtml(reception: Reception): string {
 </head>
 <body>
 <main>
-  <p class="muted">Acuse de recibo · Mudanzify</p>
+  <p class="muted">${t.document} · Mudanzify</p>
   <h1>${escape(reception.transferName)}</h1>
-  <p class="muted">Enviado: ${date(reception.sentAt)} · Verificado: ${date(reception.verifiedAt)} · Confirmado: ${date(reception.confirmedAt)}</p>
+  <p class="muted">${t.sent}: ${date(reception.sentAt)} · ${t.verified}: ${date(reception.verifiedAt)} · ${t.confirmed}: ${date(reception.confirmedAt)}</p>
   <p class="verdict ${allGood ? 'good' : 'bad'}">${
-    allGood ? 'Todo llegó completo y sin cambios. Recepción conforme.' : 'La recepción tiene observaciones: revisa las cajas marcadas con problema.'
+    allGood ? t.allGood : t.withIssues
   }</p>
 
-  <h2>Cajas</h2>
+  <h2>${t.boxes}</h2>
   <table>
-    <thead><tr><th>Caja</th><th>Archivos</th><th>Tamaño</th><th>Problemas</th><th>Decisión</th></tr></thead>
+    <thead><tr><th>${t.columns.box}</th><th>${t.columns.files}</th><th>${t.columns.size}</th><th>${t.columns.problems}</th><th>${t.columns.decision}</th></tr></thead>
     <tbody>${boxes}</tbody>
   </table>
 
   ${
     problems.length === 0
-      ? '<h2>Verificación</h2><p>Todos los archivos coinciden con lo que se envió.</p>'
-      : `<h2>Archivos con problemas</h2><ul>${problems
-          .map((file) => `<li>${escape(file.path)} — ${CHECK[file.check!]}</li>`)
+      ? `<h2>${t.verification}</h2><p>${t.allMatch}</p>`
+      : `<h2>${t.problemFiles}</h2><ul>${problems
+          .map((file) => `<li>${escape(file.path)} — ${check[file.check!]}</li>`)
           .join('')}</ul>`
   }
   ${
     reception.extras.length === 0
       ? ''
-      : `<h2>Archivos que no estaban en el envío</h2><ul>${reception.extras.map((extra) => `<li>${escape(extra)}</li>`).join('')}</ul>`
+      : `<h2>${t.extras}</h2><ul>${reception.extras.map((extra) => `<li>${escape(extra)}</li>`).join('')}</ul>`
   }
-  <p class="muted">Generado por Mudanzify el ${date(new Date().toISOString())}.</p>
+  <p class="muted">${t.footer(date(new Date().toISOString()))}</p>
 </main>
 </body>
 </html>`;

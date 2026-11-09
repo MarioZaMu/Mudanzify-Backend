@@ -1,58 +1,20 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import {
-  REPORT_FILE_NAME,
-  type FileCategory,
-  type ItemStatus,
-  type SkipReason,
-  type TableChange,
-  type TransferDraft,
-  type TransferExecution,
-} from '../../shared/contract';
+import { REPORT_FILE_NAME, type TableChange, type TransferDraft, type TransferExecution } from '../../shared/contract';
+import { texts } from '../i18n';
 
 export { REPORT_FILE_NAME };
 
 /**
- * The report is a document for people, so its texts are Spanish and live here,
- * next to the data it describes. It never includes cell values.
+ * The report is a document for people, written in the language the sender uses
+ * (texts in `../i18n`). It never includes cell values.
  */
-
-export const CATEGORY: Record<FileCategory, string> = {
-  documents: 'Documentos',
-  spreadsheets: 'Hojas de cálculo',
-  images: 'Imágenes',
-  media: 'Audio y video',
-  archives: 'Comprimidos',
-  code: 'Código y datos',
-  other: 'Otros archivos',
-};
-
-const STATUS: Record<ItemStatus, string> = {
-  pending: 'Sin procesar',
-  copied: 'Copiado',
-  transformed: 'Copiado con cambios',
-  skipped: 'Fuera del traspaso',
-  failed: 'Error',
-};
-
-const REASON: Record<SkipReason, string> = {
-  duplicate: 'Duplicado: se conservó otra copia idéntica',
-  junk: 'Archivo temporal, oculto o vacío',
-  'too-large': 'Tabla demasiado grande para aplicar los cambios con seguridad',
-};
-
-const RUN_STATUS: Record<TransferExecution['status'], string> = {
-  running: 'En curso',
-  done: 'Completado',
-  cancelled: 'Cancelado',
-  failed: 'Con errores',
-};
 
 export const escape = (value: string) =>
   value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export const date = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleString('es', { dateStyle: 'long', timeStyle: 'short' }) : '—';
+  iso ? new Date(iso).toLocaleString(texts().locale, { dateStyle: 'long', timeStyle: 'short' }) : '—';
 
 export function bytes(value: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -62,24 +24,26 @@ export function bytes(value: number): string {
     size /= 1024;
     unit++;
   }
-  return `${size.toLocaleString('es', { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
+  return `${size.toLocaleString(texts().locale, { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
 }
 
 function change(item: TableChange): string {
+  const t = texts().report;
   const where = escape(item.sheet);
   switch (item.kind) {
     case 'mask':
-      return `«${escape(item.column)}» enmascarada (${where})`;
+      return t.mask(escape(item.column), where);
     case 'drop-column':
-      return `«${escape(item.column)}» quitada (${where})`;
+      return t.dropColumn(escape(item.column), where);
     case 'remove-duplicates':
-      return `${item.rows} ${item.rows === 1 ? 'fila repetida quitada' : 'filas repetidas quitadas'} (${where})`;
+      return t.removeDuplicates(item.rows, where);
     case 'rename':
-      return `«${escape(item.column)}» → «${escape(item.to)}» (${where})`;
+      return t.rename(escape(item.column), escape(item.to), where);
   }
 }
 
 function buildHtml(draft: TransferDraft, execution: TransferExecution): string {
+  const { locale, category, report: t } = texts();
   const files = new Map(draft.inventory?.files.map((file) => [file.id, file]) ?? []);
   const criteria = (draft.interview?.suggestions ?? []).filter((s) => s.status === 'accepted' || s.status === 'edited');
   const { totals, plan } = execution;
@@ -97,30 +61,30 @@ function buildHtml(draft: TransferDraft, execution: TransferExecution): string {
       const file = files.get(result.fileId);
       const detail =
         result.status === 'failed'
-          ? escape(result.error ?? 'Error desconocido')
+          ? escape(result.error ?? t.unknownError)
           : item?.reason
-            ? REASON[item.reason]
+            ? t.reason[item.reason]
             : item?.changes.length
               ? item.changes.map(change).join('<br>')
               : result.verified
-                ? 'Verificado (contenido idéntico)'
+                ? t.verified
                 : '';
       return `<tr class="${result.status}">
         <td>${escape(file?.relativePath ?? result.fileId)}</td>
-        <td>${item ? CATEGORY[item.category] : ''}</td>
+        <td>${item ? category[item.category] : ''}</td>
         <td>${escape(result.target ?? '—')}</td>
-        <td><span class="pill">${STATUS[result.status]}</span></td>
+        <td><span class="pill">${t.status[result.status]}</span></td>
         <td>${detail}</td>
       </tr>`;
     })
     .join('');
 
   return `<!doctype html>
-<html lang="es">
+<html lang="${locale}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Informe de Mudanzify · ${escape(draft.name)}</title>
+<title>${t.document} · ${escape(draft.name)}</title>
 <style>
   :root { --ink:#1f1b16; --muted:#6b6258; --line:#e7dfd3; --paper:#fbf8f3; --primary:#4f46e5; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; }
   * { box-sizing: border-box; }
@@ -146,50 +110,50 @@ function buildHtml(draft: TransferDraft, execution: TransferExecution): string {
 </head>
 <body>
 <main>
-  <p class="muted">Informe de Mudanzify</p>
+  <p class="muted">${t.document}</p>
   <h1>${escape(draft.name)}</h1>
-  <p class="muted">Estado: <b>${RUN_STATUS[execution.status]}</b> · Inicio: ${date(execution.startedAt)} · Fin: ${date(execution.finishedAt)}</p>
+  <p class="muted">${t.state}: <b>${t.run[execution.status]}</b> · ${t.start}: ${date(execution.startedAt)} · ${t.end}: ${date(execution.finishedAt)}</p>
 
   <div class="cards">
-    <div class="card"><b>${totals.copied}</b>copiados sin cambios</div>
-    <div class="card"><b>${totals.transformed}</b>copiados con cambios</div>
-    <div class="card"><b>${totals.skipped}</b>fuera del traspaso</div>
-    <div class="card"><b>${totals.failed}</b>con error</div>
-    <div class="card"><b>${bytes(totals.bytes)}</b>escritos</div>
+    <div class="card"><b>${totals.copied}</b>${t.cards.copied}</div>
+    <div class="card"><b>${totals.transformed}</b>${t.cards.transformed}</div>
+    <div class="card"><b>${totals.skipped}</b>${t.cards.skipped}</div>
+    <div class="card"><b>${totals.failed}</b>${t.cards.failed}</div>
+    <div class="card"><b>${bytes(totals.bytes)}</b>${t.cards.written}</div>
   </div>
 
-  <h2>Origen y destino</h2>
+  <h2>${t.originAndDestination}</h2>
   <ul>
-    ${draft.sources.map((source) => `<li>Origen: ${escape(source.path)}</li>`).join('')}
-    <li>Destino: ${escape(path.basename(execution.outputPath))}</li>
+    ${draft.sources.map((source) => `<li>${t.origin}: ${escape(source.path)}</li>`).join('')}
+    <li>${t.destination}: ${escape(path.basename(execution.outputPath))}</li>
   </ul>
-  <p class="muted">Mudanzify solo copió: los archivos de origen no se movieron, cambiaron ni borraron.</p>
+  <p class="muted">${t.copyOnly}</p>
 
-  <h2>Orden de empaque</h2>
-  <ol>${plan.order.map((category) => `<li>${CATEGORY[category]}</li>`).join('')}</ol>
+  <h2>${t.packingOrder}</h2>
+  <ol>${plan.order.map((name) => `<li>${category[name]}</li>`).join('')}</ol>
 
-  <h2>Criterios aplicados</h2>
+  <h2>${t.criteria}</h2>
   ${
     criteria.length === 0
-      ? '<p class="muted">Sin criterios: se siguieron las reglas por defecto.</p>'
+      ? `<p class="muted">${t.noCriteria}</p>`
       : `<ul>${criteria.map((c) => `<li><b>${escape(c.title)}</b>${c.detail ? ` — ${escape(c.detail)}` : ''}</li>`).join('')}</ul>`
   }
 
   ${
     notes.length === 0
       ? ''
-      : `<h2>Para revisar</h2><ul>${notes
-          .map((f) => (f.kind === 'empty-cells' ? `<li>«${escape(f.column)}»: ${f.empty} de ${f.total} filas sin dato (${escape(files.get(f.table.fileId)?.relativePath ?? '')})</li>` : ''))
+      : `<h2>${t.toReview}</h2><ul>${notes
+          .map((f) => (f.kind === 'empty-cells' ? `<li>${t.gaps(escape(f.column), f.empty, f.total, escape(files.get(f.table.fileId)?.relativePath ?? ''))}</li>` : ''))
           .join('')}</ul>`
   }
 
-  <h2>Archivos</h2>
+  <h2>${t.files}</h2>
   <table>
-    <thead><tr><th>Origen</th><th>Caja</th><th>Destino</th><th>Resultado</th><th>Detalle</th></tr></thead>
+    <thead><tr><th>${t.columns.origin}</th><th>${t.columns.box}</th><th>${t.columns.destination}</th><th>${t.columns.result}</th><th>${t.columns.detail}</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
 
-  <footer class="muted">Generado por Mudanzify el ${date(new Date().toISOString())}. Este informe no incluye el contenido de las tablas.</footer>
+  <footer class="muted">${t.footer(date(new Date().toISOString()))}</footer>
 </main>
 </body>
 </html>`;
