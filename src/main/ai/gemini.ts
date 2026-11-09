@@ -1,18 +1,19 @@
 import type { FunctionDeclaration } from '@google/genai';
 import { CRITERION_TOPICS, type InterviewTurn } from '../../shared/contract';
+import { texts } from '../i18n';
 import type { InventoryContext } from './context';
 import { createFunctionCaller } from './geminiClient';
 import { sanitizeQuestion, sanitizeSummary } from './sanitize';
 import { MAX_QUESTIONS, MIN_QUESTIONS, type Interviewer, type InterviewStep } from './types';
 
-const SYSTEM_PROMPT = `You are the interviewer inside Mudanzify, a desktop app that helps a person (the "sender")
+const systemPrompt = () => `You are the interviewer inside Mudanzify, a desktop app that helps a person (the "sender")
 move data from an origin to a destination without losing, duplicating or disordering anything.
 
 Your job in this step is ONLY to understand the sender's intent through a short interview, then propose
 transfer criteria that the sender will review one by one.
 
 Rules you must always follow:
-- Write everything in neutral, friendly Spanish (Latin America), short and clear. Use "tú".
+- Write everything in ${texts().model.style}.
 - Ask ONE question at a time. Ask between ${MIN_QUESTIONS} and ${MAX_QUESTIONS} questions in total.
 - Base your questions on the inventory summary: purpose of the transfer, what matters most, how to treat
   temporary/hidden/empty files, empty cells in tables, possible duplicates, and personal or sensitive data
@@ -27,14 +28,14 @@ Rules you must always follow:
 When you have enough information, call finish_interview with a two or three sentence summary of the
 sender's intent and up to 6 concrete criteria. Use the topics: ${CRITERION_TOPICS.join(', ')}.`;
 
-const FUNCTIONS: FunctionDeclaration[] = [
+const functions = (language = texts().model.language): FunctionDeclaration[] => [
   {
     name: 'ask_question',
     description: 'Ask the sender the next interview question.',
     parametersJsonSchema: {
       type: 'object',
       properties: {
-        text: { type: 'string', description: 'The question, in Spanish.' },
+        text: { type: 'string', description: `The question, in ${language}.` },
         why: { type: 'string', description: 'One sentence: what in the inventory motivates it.' },
         options: { type: 'array', items: { type: 'string' }, description: '2 to 4 short quick answers.' },
         multiple: { type: 'boolean', description: 'True if several options can be chosen together.' },
@@ -48,15 +49,15 @@ const FUNCTIONS: FunctionDeclaration[] = [
     parametersJsonSchema: {
       type: 'object',
       properties: {
-        summary: { type: 'string', description: "Two or three sentences about the sender's intent, in Spanish." },
+        summary: { type: 'string', description: `Two or three sentences about the sender's intent, in ${language}.` },
         suggestions: {
           type: 'array',
           items: {
             type: 'object',
             properties: {
               topic: { type: 'string', enum: [...CRITERION_TOPICS] },
-              title: { type: 'string', description: 'Short criterion, in Spanish.' },
-              detail: { type: 'string', description: 'One or two sentences explaining it, in Spanish.' },
+              title: { type: 'string', description: `Short criterion, in ${language}.` },
+              detail: { type: 'string', description: `One or two sentences explaining it, in ${language}.` },
             },
             required: ['topic', 'title', 'detail'],
           },
@@ -94,9 +95,9 @@ export function createGeminiInterviewer(apiKey: string, model: string): Intervie
             : ['ask_question', 'finish_interview'];
 
       const { name, args } = await call({
-        system: SYSTEM_PROMPT,
+        system: systemPrompt(),
         input: { inventorySummary: context, questionsAnswered: answered, conversation: transcript(turns) },
-        functions: FUNCTIONS,
+        functions: functions(),
         allowed,
       });
       return name === 'finish_interview' ? sanitizeSummary(args) : sanitizeQuestion(args);

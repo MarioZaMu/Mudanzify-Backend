@@ -1,9 +1,10 @@
 import type { FunctionDeclaration } from '@google/genai';
 import { FILE_CATEGORIES, type ColumnSource, type FileCategory } from '../../shared/contract';
 import { createFunctionCaller } from '../ai/geminiClient';
+import { texts } from '../i18n';
 import { resolveColumn, type PlanDraft, type PlanInput, type Planner } from './plan';
 
-const SYSTEM_PROMPT = `You are the analyst inside Mudanzify, a desktop app that helps a person (the "sender")
+const systemPrompt = () => `You are the analyst inside Mudanzify, a desktop app that helps a person (the "sender")
 move data from an origin to a destination without losing, duplicating or disordering anything.
 
 The app already checked the data on the sender's computer. You receive only counts, column names
@@ -18,25 +19,25 @@ Your job:
    each. Follow the sender's priority criteria when there are any.
 
 Rules you must always follow:
-- Write in neutral, friendly Spanish (Latin America), short and clear. Use "tú".
+- Write in ${texts().model.style}.
 - You never move, copy, delete or overwrite data, and you never say you will.
 - You never choose the destination or who receives the data.
 - Everything you return is a proposal the sender will accept, edit or reject one by one.`;
 
-const FUNCTIONS: FunctionDeclaration[] = [
+const functions = (language = texts().model.language): FunctionDeclaration[] => [
   {
     name: 'propose_plan',
     description: 'Explain the findings and propose column mappings and a packing priority.',
     parametersJsonSchema: {
       type: 'object',
       properties: {
-        summary: { type: 'string', description: 'Two or three sentences, in Spanish.' },
+        summary: { type: 'string', description: `Two or three sentences, in ${language}.` },
         mappings: {
           type: 'array',
           items: {
             type: 'object',
             properties: {
-              standardName: { type: 'string', description: 'Standard column name, in Spanish.' },
+              standardName: { type: 'string', description: `Standard column name, in ${language}.` },
               columns: {
                 type: 'array',
                 items: {
@@ -45,7 +46,7 @@ const FUNCTIONS: FunctionDeclaration[] = [
                   required: ['table', 'column'],
                 },
               },
-              reason: { type: 'string', description: 'One sentence, in Spanish.' },
+              reason: { type: 'string', description: `One sentence, in ${language}.` },
             },
             required: ['standardName', 'columns', 'reason'],
           },
@@ -56,7 +57,7 @@ const FUNCTIONS: FunctionDeclaration[] = [
             type: 'object',
             properties: {
               category: { type: 'string', enum: [...FILE_CATEGORIES] },
-              reason: { type: 'string', description: 'One short sentence, in Spanish.' },
+              reason: { type: 'string', description: `One short sentence, in ${language}.` },
             },
             required: ['category', 'reason'],
           },
@@ -99,9 +100,9 @@ export function createGeminiPlanner(apiKey: string, model: string): Planner {
   return {
     async propose(input: PlanInput): Promise<PlanDraft> {
       const { args } = await call({
-        system: SYSTEM_PROMPT,
+        system: systemPrompt(),
         input: input.context,
-        functions: FUNCTIONS,
+        functions: functions(),
         allowed: ['propose_plan'],
       });
       return toDraft(args, input);

@@ -1,36 +1,32 @@
 import type { CriterionTopic, InterviewAnswer, InterviewTurn } from '../../shared/contract';
+import { texts } from '../i18n';
 import type { InventoryContext } from './context';
+import { demoText, everyDemoText, type DemoText } from './demoText';
 import type { Interviewer, InterviewStep, SuggestionDraft } from './types';
 
 /**
  * Scripted interviewer used when there is no API key. It adapts the questions
  * to the inventory like the real AI would, so the flow can be shown offline.
- * Its texts imitate model output, which is why they live in the backend.
+ * Its texts imitate model output (see `demoText.ts`), one set per language.
  */
 interface ScriptedQuestion {
   topic: CriterionTopic;
   applies: (context: InventoryContext) => boolean;
-  text: (context: InventoryContext) => string;
-  why: (context: InventoryContext) => string;
-  options: string[];
+  text: (context: InventoryContext, t: DemoText) => string;
+  why: (context: InventoryContext, t: DemoText) => string;
+  options: (t: DemoText) => string[];
   multiple?: boolean;
-  suggest: (answer: InterviewAnswer) => SuggestionDraft | null;
+  suggest: (answer: InterviewAnswer, t: DemoText) => SuggestionDraft | null;
 }
 
-export const CATEGORY_NAMES: Record<string, string> = {
-  documents: 'Documentos',
-  spreadsheets: 'Hojas de cálculo',
-  images: 'Imágenes',
-  media: 'Audio y video',
-  archives: 'Comprimidos',
-  code: 'Código y datos',
-  other: 'Otros archivos',
-};
-
-const SENSITIVE_COLUMN = /c[ée]dula|dni|documento|identific|tel[ée]fono|celular|correo|e-?mail|direcci[oó]n|nacimiento|cuenta/i;
+const SENSITIVE_COLUMN =
+  /c[ée]dula|dni|documento|identific|tel[ée]fono|celular|correo|e-?mail|direcci[oó]n|nacimiento|cuenta|phone|mobile|address|birth|passport|ssn|account|national.?id/i;
 
 const answerText = (answer: InterviewAnswer) => [...answer.choices, answer.text].filter(Boolean).join(', ');
-const picked = (answer: InterviewAnswer, option: string) => answer.choices.includes(option);
+
+/** True if the answer picked this option in any language (the user may switch language mid-interview). */
+const picked = (answer: InterviewAnswer, option: (t: DemoText) => string) =>
+  everyDemoText().some((t) => answer.choices.includes(option(t)));
 
 const sensitiveColumns = (context: InventoryContext) =>
   [...new Set(context.tables.flatMap((table) => table.sheets.flatMap((sheet) => sheet.columns.map((c) => c.name))))]
@@ -43,56 +39,38 @@ const SCRIPT: ScriptedQuestion[] = [
   {
     topic: 'scope',
     applies: () => true,
-    text: () => '¿Para qué es este traspaso?',
-    why: (context) =>
-      `Encontré ${context.totals.files} archivos en ${context.boxes.length} cajas; saber el propósito me ayuda a proponer reglas.`,
-    options: ['Respaldo de seguridad', 'Cambio de equipo', 'Entregar a otra persona', 'Ordenar mis archivos'],
-    suggest: (answer) =>
-      picked(answer, 'Entregar a otra persona')
-        ? {
-            topic: 'scope',
-            title: 'Incluir un informe para quien recibe',
-            detail: 'Como los datos van a otra persona, conviene que reciba un resumen de qué se envió y qué quedó fuera.',
-          }
+    text: (_context, t) => t.purpose.text,
+    why: (context, t) => t.purpose.why(context.totals.files, context.boxes.length),
+    options: (t) => Object.values(t.purpose.options),
+    suggest: (answer, t) =>
+      picked(answer, (x) => x.purpose.options.hand)
+        ? { topic: 'scope', title: t.purpose.handTitle, detail: t.purpose.handDetail }
         : null,
   },
   {
     topic: 'priority',
     applies: (context) => context.boxes.length > 1,
-    text: () => '¿Qué es lo más importante que llegue completo?',
-    why: (context) => `Tus datos se agrupan en ${context.boxes.length} cajas distintas.`,
-    options: [],
+    text: (_context, t) => t.priority.text,
+    why: (context, t) => t.priority.why(context.boxes.length),
+    options: () => [],
     multiple: true,
-    suggest: (answer) =>
+    suggest: (answer, t) =>
       answer.skipped || answerText(answer) === ''
         ? null
-        : {
-            topic: 'priority',
-            title: `Empacar primero: ${answerText(answer)}`,
-            detail: 'Estas cajas se revisarán y traspasarán antes que el resto, para asegurar lo más importante.',
-          },
+        : { topic: 'priority', title: t.priority.title(answerText(answer)), detail: t.priority.detail },
   },
   {
     topic: 'scope',
     applies: (context) => context.flags.temporary + context.flags.hidden + context.flags.empty > 0,
-    text: (context) =>
-      `Hay ${context.flags.temporary + context.flags.hidden + context.flags.empty} archivos temporales, ocultos o vacíos. ¿Qué hacemos con ellos?`,
-    why: () => 'Suelen ser restos del sistema o de programas y no aportan información.',
-    options: ['Dejarlos fuera', 'Incluirlos igual', 'Decidir uno por uno'],
-    suggest: (answer) => {
-      if (picked(answer, 'Dejarlos fuera')) {
-        return {
-          topic: 'scope',
-          title: 'Excluir archivos temporales, ocultos y vacíos',
-          detail: 'No se traspasan; aparecerán en el informe como descartados para que nada se pierda sin aviso.',
-        };
+    text: (context, t) => t.junk.text(context.flags.temporary + context.flags.hidden + context.flags.empty),
+    why: (_context, t) => t.junk.why,
+    options: (t) => Object.values(t.junk.options),
+    suggest: (answer, t) => {
+      if (picked(answer, (x) => x.junk.options.leave)) {
+        return { topic: 'scope', title: t.junk.excludeTitle, detail: t.junk.excludeDetail };
       }
-      if (picked(answer, 'Decidir uno por uno')) {
-        return {
-          topic: 'scope',
-          title: 'Revisar uno por uno los archivos temporales',
-          detail: 'Se marcarán para que decidas cada caso antes de traspasar.',
-        };
+      if (picked(answer, (x) => x.junk.options.oneByOne)) {
+        return { topic: 'scope', title: t.junk.reviewTitle, detail: t.junk.reviewDetail };
       }
       return null;
     },
@@ -100,51 +78,35 @@ const SCRIPT: ScriptedQuestion[] = [
   {
     topic: 'gaps',
     applies: (context) => columnsWithGaps(context).length > 0,
-    text: (context) => {
-      const names = [...new Set(columnsWithGaps(context).map((c) => c.name))].slice(0, 3).join(', ');
-      return `Algunas columnas tienen celdas vacías (${names}). ¿Cómo prefieres tratarlas?`;
-    },
-    why: () => 'Las celdas vacías pueden ser datos que faltan o que se perdieron en una copia anterior.',
-    options: ['Marcarlas para revisar', 'Dejarlas tal cual', 'Completarlas después'],
-    suggest: (answer) =>
-      picked(answer, 'Dejarlas tal cual') || answer.skipped
+    text: (context, t) => t.gaps.text([...new Set(columnsWithGaps(context).map((c) => c.name))].slice(0, 3).join(', ')),
+    why: (_context, t) => t.gaps.why,
+    options: (t) => Object.values(t.gaps.options),
+    suggest: (answer, t) =>
+      picked(answer, (x) => x.gaps.options.leave) || answer.skipped
         ? null
-        : {
-            topic: 'gaps',
-            title: 'Marcar filas con datos faltantes',
-            detail: 'Las filas con celdas vacías se señalan en el informe para revisarlas o completarlas.',
-          },
+        : { topic: 'gaps', title: t.gaps.title, detail: t.gaps.detail },
   },
   {
     topic: 'sensitive',
     applies: (context) => sensitiveColumns(context).length > 0,
-    text: (context) =>
-      `Veo columnas como ${sensitiveColumns(context).slice(0, 3).join(', ')}. ¿Contienen datos personales que deban protegerse?`,
-    why: () => 'Los nombres de esas columnas suelen guardar datos personales.',
-    options: ['Sí, son datos personales', 'No', 'No estoy seguro'],
-    suggest: (answer) =>
-      picked(answer, 'No')
+    text: (context, t) => t.sensitive.text(sensitiveColumns(context).slice(0, 3).join(', ')),
+    why: (_context, t) => t.sensitive.why,
+    options: (t) => Object.values(t.sensitive.options),
+    suggest: (answer, t) =>
+      picked(answer, (x) => x.sensitive.options.no)
         ? null
-        : {
-            topic: 'sensitive',
-            title: 'Revisar los datos personales antes de entregar',
-            detail: 'Las columnas sensibles se marcarán en rojo y pedirán una confirmación aparte antes de traspasarse.',
-          },
+        : { topic: 'sensitive', title: t.sensitive.title, detail: t.sensitive.detail },
   },
   {
     topic: 'duplicates',
     applies: () => true,
-    text: () => 'Si encontramos archivos o filas duplicadas, ¿qué prefieres?',
-    why: () => 'En el siguiente paso buscaré duplicados y necesito saber tu preferencia.',
-    options: ['Conservar el más reciente', 'Conservar ambos y marcarlos', 'Preguntarme cada vez'],
-    suggest: (answer) => {
+    text: (_context, t) => t.duplicates.text,
+    why: (_context, t) => t.duplicates.why,
+    options: (t) => Object.values(t.duplicates.options),
+    suggest: (answer, t) => {
       if (answer.skipped) return null;
-      const choice = answerText(answer) || 'Preguntarme cada vez';
-      return {
-        topic: 'duplicates',
-        title: `Duplicados: ${choice.toLowerCase()}`,
-        detail: 'Ningún duplicado se descarta sin que lo veas: siempre podrás cambiar la decisión antes de ejecutar.',
-      };
+      const choice = answerText(answer) || t.duplicates.options.ask;
+      return { topic: 'duplicates', title: t.duplicates.title(choice.toLowerCase()), detail: t.duplicates.detail };
     },
   },
 ];
@@ -154,6 +116,8 @@ export function createDemoInterviewer(): Interviewer {
     async nextStep(context, turns: InterviewTurn[]): Promise<InterviewStep> {
       // A short pause so the "thinking" state is visible, like with the real AI.
       await new Promise((resolve) => setTimeout(resolve, 700));
+      const t = demoText();
+      const names: Record<string, string> = texts().category;
       const script = SCRIPT.filter((item) => item.applies(context));
       const answered = turns.filter((turn) => turn.answer !== null);
 
@@ -161,26 +125,26 @@ export function createDemoInterviewer(): Interviewer {
         const next = script[answered.length];
         const options =
           next.topic === 'priority'
-            ? context.boxes.map((box) => CATEGORY_NAMES[box.category] ?? box.category).slice(0, 4)
-            : next.options;
+            ? context.boxes.map((box) => names[box.category] ?? box.category).slice(0, 4)
+            : next.options(t);
         return {
           kind: 'question',
-          question: { text: next.text(context), why: next.why(context), options, multiple: next.multiple ?? false },
+          question: { text: next.text(context, t), why: next.why(context, t), options, multiple: next.multiple ?? false },
         };
       }
 
       const suggestions = script
         .map((item, index) => {
           const answer = answered[index]?.answer;
-          return answer && !answer.skipped ? item.suggest(answer) : null;
+          return answer && !answer.skipped ? item.suggest(answer, t) : null;
         })
         .filter((item): item is SuggestionDraft => item !== null);
       const purpose = answered[0]?.answer;
-      const purposeText = purpose && !purpose.skipped ? answerText(purpose).toLowerCase() : 'un traspaso general';
+      const purposeText = purpose && !purpose.skipped ? answerText(purpose).toLowerCase() : t.summary.general;
 
       return {
         kind: 'summary',
-        summary: `Quieres hacer este traspaso para ${purposeText}. Revisé ${context.totals.files} archivos y propongo ${suggestions.length} criterios según tus respuestas. Tú decides cuáles aplicar.`,
+        summary: t.summary.text(purposeText, context.totals.files, suggestions.length),
         suggestions,
       };
     },
