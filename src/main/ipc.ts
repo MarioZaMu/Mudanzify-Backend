@@ -2,7 +2,8 @@ import { app, ipcMain } from 'electron';
 import { CONTRACT_VERSION, IpcChannel, type AppInfo } from '../shared/contract';
 import { completeOnboarding, getOnboardingState, resetOnboarding } from './onboarding';
 import { assertTrustedSender } from './security';
-import { isThemePreference, isUserRole } from './settings';
+import { getLanguage, setLanguage } from './language';
+import { isLanguage, isThemePreference, isUserRole } from './settings';
 import { getThemeState, setThemePreference } from './theme';
 import { registerAnalysisHandlers } from './analysis/ipc';
 import { registerExecutionHandlers } from './execution/ipc';
@@ -40,6 +41,17 @@ export function registerIpcHandlers(): void {
     // Never trust renderer input: validate before touching settings.
     if (!isThemePreference(preference)) throw new Error('Invalid theme preference');
     return setThemePreference(preference);
+  });
+
+  ipcMain.handle(IpcChannel.LanguageGet, (event) => {
+    assertTrustedSender(event);
+    return getLanguage();
+  });
+
+  ipcMain.handle(IpcChannel.LanguageSet, (event, language: unknown) => {
+    assertTrustedSender(event);
+    if (!isLanguage(language)) throw new Error('Invalid language');
+    return setLanguage(language);
   });
 
   ipcMain.handle(IpcChannel.OnboardingGet, (event) => {

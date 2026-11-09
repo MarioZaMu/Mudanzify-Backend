@@ -6,7 +6,7 @@
  * dependency-free: only types and constants, no Node or Electron imports.
  */
 
-export const CONTRACT_VERSION = 8;
+export const CONTRACT_VERSION = 9;
 
 /** Name of the object the preload script exposes on `window`. */
 export const BRIDGE_KEY = 'mudanzify';
@@ -16,6 +16,8 @@ export const IpcChannel = {
   AppGetInfo: 'app:get-info',
   ThemeGet: 'theme:get',
   ThemeSet: 'theme:set',
+  LanguageGet: 'language:get',
+  LanguageSet: 'language:set',
   OnboardingGet: 'onboarding:get',
   OnboardingComplete: 'onboarding:complete',
   OnboardingReset: 'onboarding:reset',
@@ -84,6 +86,9 @@ export interface AppInfo {
 
 export const THEME_PREFERENCES = ['light', 'dark', 'system'] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
+
+export const LANGUAGES = ['es', 'en'] as const;
+export type Language = (typeof LANGUAGES)[number];
 
 export interface ThemeState {
   /** What the user chose. */
@@ -630,6 +635,10 @@ export interface MudanzifyBridge {
     set(preference: ThemePreference): Promise<ThemeState>;
     /** Subscribes to theme changes; returns an unsubscribe function. */
     onChange(listener: (state: ThemeState) => void): () => void;
+  };
+  language: {
+    get(): Promise<Language>;
+    set(language: Language): Promise<Language>;
   };
   onboarding: {
     get(): Promise<OnboardingState>;

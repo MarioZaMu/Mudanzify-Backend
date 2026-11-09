@@ -25,6 +25,10 @@ const bridge: MudanzifyBridge = {
       return () => ipcRenderer.removeListener(IpcEvent.ThemeChanged, handler);
     },
   },
+  language: {
+    get: () => ipcRenderer.invoke(IpcChannel.LanguageGet),
+    set: (language) => ipcRenderer.invoke(IpcChannel.LanguageSet, language),
+  },
   onboarding: {
     get: () => ipcRenderer.invoke(IpcChannel.OnboardingGet),
     complete: (role) => ipcRenderer.invoke(IpcChannel.OnboardingComplete, role),
