@@ -62,3 +62,12 @@ El archivo `.env` está en `.gitignore` y nunca se sube al repositorio. Sin clav
 | `npm run renderer:copy` | Copia `mudanzify-frontend/dist` a `renderer/`. |
 | `npm run typecheck` | Verifica tipos con TypeScript. |
 | `npm run dist` | Compila todo y genera el instalador en `release/`. |
+| `npm run ai:key` | Copia `GEMINI_API_KEY` de `.env` a `build/ai.key` (ignorado por git) para que `dist` la incluya. |
+
+## Pasar datos entre dos PCs
+
+1. Instala Mudanzify en las dos PCs (`Mudanzify-Setup-<versión>.exe`). El receptor no necesita clave de IA.
+2. **Emisor**: crea el traspaso y elige como destino un USB, una carpeta de la nube o una carpeta de red. Se crea `Mudanzify - <nombre>`.
+3. Si el destino no era ese medio, copia la carpeta `Mudanzify - <nombre>` **completa** (con `mudanzify.json`) a la otra PC.
+4. **Receptor**: *Recepciones* → *Abrir carpeta recibida* → elige esa carpeta → Recibido, Verificar y Confirmar. Se escribe `Acuse de recibo.html`.
+5. No muevas la carpeta después de abrirla en el receptor; si se mueve, la app avisa y hay que abrirla de nuevo.
