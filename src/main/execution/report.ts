@@ -161,7 +161,7 @@ function buildHtml(draft: TransferDraft, execution: TransferExecution): string {
   <h2>Origen y destino</h2>
   <ul>
     ${draft.sources.map((source) => `<li>Origen: ${escape(source.path)}</li>`).join('')}
-    <li>Destino: ${escape(execution.outputPath)}</li>
+    <li>Destino: ${escape(path.basename(execution.outputPath))}</li>
   </ul>
   <p class="muted">Mudanzify solo copió: los archivos de origen no se movieron, cambiaron ni borraron.</p>
 
